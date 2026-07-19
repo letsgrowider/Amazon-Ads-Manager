@@ -1,22 +1,39 @@
 import { NextResponse } from "next/server";
 import { syncAllAccounts } from "@/lib/sync";
 
-// Manual trigger for the dashboard's "Sync now" button. For unattended
-// scheduling, run `npm run sync` (scripts/sync-all.ts) from cron/launchd,
-// or GET /api/cron/sync from a scheduler, instead of hitting this by hand.
+const DISPATCH_REPO = "letsgrowider/Amazon-Ads-Manager";
+const DISPATCH_WORKFLOW = "sync.yml";
+
+// Manual trigger for the dashboard's "Sync now" button.
 //
-// Fire-and-forget: a sync can take several minutes even in the fast
-// (incremental) path, and much longer for a profile's first-ever backfill —
-// blocking this request until everything finishes made the button (and any
-// caller of this route) hang for that whole time. Poll GET /api/sync-status
-// for live progress instead. This still requires a long-lived Node process
-// to keep running after the response is sent, which is true for local dev
-// and a real server — the same architecture caveat already flagged for a
-// serverless host applies here too (the function would be frozen once the
-// response returns).
+// On a long-lived Node process (local dev, a real server) fire-and-forget
+// works fine: the process keeps running after the response is sent. On
+// serverless (Vercel) the function freezes the instant the response goes
+// out, silently killing the in-flight sync — so when GITHUB_DISPATCH_TOKEN
+// is configured, dispatch the same GitHub Actions workflow the cron uses
+// instead of running the sync in this request's process.
 export async function POST() {
+  const token = process.env.GITHUB_DISPATCH_TOKEN;
+  if (token) {
+    const res = await fetch(
+      `https://api.github.com/repos/${DISPATCH_REPO}/actions/workflows/${DISPATCH_WORKFLOW}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github+json",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      }
+    );
+    if (!res.ok) {
+      return NextResponse.json({ error: await res.text() }, { status: 502 });
+    }
+    return NextResponse.json({ started: true, via: "github-actions" });
+  }
+
   syncAllAccounts().catch((err) => {
     console.error("sync failed:", err);
   });
-  return NextResponse.json({ started: true });
+  return NextResponse.json({ started: true, via: "in-process" });
 }
