@@ -1,0 +1,217 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// One row per Amazon Ads account you've authorized via LWA.
+model AmazonAccount {
+  id            String   @id @default(cuid())
+  name          String
+  region        String // "NA" | "EU" | "FE"
+  accessToken   String // short-lived, refreshed on demand
+  refreshToken  String // long-lived, obtained once via OAuth
+  tokenExpiresAt DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profiles Profile[]
+}
+
+// Amazon Advertising "profile" = one marketplace under an account.
+model Profile {
+  id              String   @id @default(cuid())
+  profileId       String   @unique // Amazon's numeric profileId
+  countryCode     String
+  currencyCode    String
+  marketplaceId   String
+  // accountInfo.name from /v2/profiles — the seller/vendor entity name.
+  // Needed to tell profiles apart when an account has several in the same
+  // country (e.g. multiple India entities under one EU-region login) —
+  // countryCode alone is ambiguous there.
+  entityName      String?
+  accountId       String
+  account         AmazonAccount @relation(fields: [accountId], references: [id])
+  createdAt       DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+// One row per `npm run sync` / cron invocation — lets the dashboard show
+// live progress ("profile 4/14 running") instead of a sync being a black
+// box until it finishes or errors out.
+model SyncRun {
+  id         String    @id @default(cuid())
+  status     String    @default("running") // running | completed | failed
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  profiles SyncRunProfile[]
+}
+
+model SyncRunProfile {
+  id        String    @id @default(cuid())
+  syncRunId String
+  syncRun   SyncRun   @relation(fields: [syncRunId], references: [id])
+  label     String // e.g. "Amazon Ads (EU) — AMOCARE Wellness"
+  status    String    @default("pending") // pending | running | done | failed
+  error     String?
+  startedAt DateTime?
+  finishedAt DateTime?
+
+  @@index([syncRunId])
+}
+
+model Campaign {
+  id           String   @id @default(cuid())
+  campaignId   String   @unique // Amazon's campaignId
+  name         String
+  state        String // enabled | paused | archived
+  targetingType String // manual | auto
+  dailyBudget  Float
+  startDate    DateTime? // Amazon requires this echoed back, unchanged, on every campaign PUT
+  biddingStrategy String @default("legacy_for_sales") // dynamic bidding strategy, synced from Amazon
+  placementBidding Json @default("[]") // [{placement, percentage}] — see lib/amazon-ads.ts PlacementBiddingInput
+  targetAcos   Float? // user-set goal, drives bid rule suggestions (see lib/bid-rules.ts)
+  daypartingEnabled Boolean @default(false)
+  daypartingHours   Int[]   @default([]) // UTC hours (0-23) this campaign should be enabled; paused the rest — see lib/dayparting.ts
+  tags         String[] @default([]) // free-form user labels, e.g. "brand", "clearance"
+  notes        String? // free-text context, e.g. why a decision was made
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  adGroups AdGroup[]
+  metrics  MetricSnapshot[]
+}
+
+model AdGroup {
+  id         String   @id @default(cuid())
+  adGroupId  String   @unique
+  name       String
+  state      String
+  defaultBid Float
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  keywords Keyword[]
+  metrics  MetricSnapshot[]
+  negativeKeywordSuggestions NegativeKeywordSuggestion[]
+  keywordHarvestSuggestions  KeywordHarvestSuggestion[]
+}
+
+model Keyword {
+  id           String   @id @default(cuid())
+  keywordId    String   @unique
+  keywordText  String
+  matchType    String // exact | phrase | broad
+  state        String
+  bid          Float
+  adGroupId    String
+  adGroup      AdGroup  @relation(fields: [adGroupId], references: [id])
+  createdAt    DateTime @default(now())
+
+  metrics MetricSnapshot[]
+}
+
+// Daily rollup of performance for a campaign / ad group / keyword.
+// entityType + entityId identify what this row measures.
+model MetricSnapshot {
+  id          String   @id @default(cuid())
+  date        DateTime // day granularity
+  entityType  String // campaign | adGroup | keyword
+  impressions Int
+  clicks      Int
+  spend       Float
+  sales       Float
+  orders      Int
+  acos        Float
+  ctr         Float
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  adGroupId  String?
+  adGroup    AdGroup?  @relation(fields: [adGroupId], references: [id])
+  keywordId  String?
+  keyword    Keyword?  @relation(fields: [keywordId], references: [id])
+
+  @@unique([date, entityType, campaignId, adGroupId, keywordId])
+  @@index([date])
+}
+
+// Search term report rows, used for negative keyword harvesting.
+model SearchTermReport {
+  id           String   @id @default(cuid())
+  date         DateTime
+  searchTerm   String
+  keywordId    String?
+  campaignId   String
+  adGroupId    String
+  impressions  Int
+  clicks       Int
+  spend        Float
+  sales        Float
+  orders       Int
+  createdAt    DateTime @default(now())
+
+  @@index([searchTerm])
+  @@index([campaignId])
+}
+
+// Locally-tracked negative keyword candidates. Not pushed to Amazon yet —
+// the write endpoint for this needs verifying against a live account first
+// (see lib/amazon-ads.ts comments). This table lets the harvesting workflow
+// be useful today and gives something to push once that's wired up.
+model NegativeKeywordSuggestion {
+  id          String   @id @default(cuid())
+  keywordText String
+  matchType   String   @default("negativeExact")
+  status      String   @default("queued") // queued | pushed | dismissed
+  adGroupId   String
+  adGroup     AdGroup  @relation(fields: [adGroupId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([keywordText, adGroupId])
+}
+
+// Locally-tracked positive keyword candidates ("keyword harvesting" — a
+// search term that converted, worth promoting to its own exact-match
+// keyword for tighter bid control). Same not-pushed-yet reasoning as
+// NegativeKeywordSuggestion: creating keywords via POST /sp/keywords (v3,
+// same vnd.spKeyword.v3+json family already verified for list/update)
+// hasn't been tested against a live account.
+model KeywordHarvestSuggestion {
+  id           String   @id @default(cuid())
+  keywordText  String
+  matchType    String   @default("exact")
+  suggestedBid Float? // observed cost-per-click for this search term, as a starting bid
+  status       String   @default("queued") // queued | added | dismissed
+  adGroupId    String
+  adGroup      AdGroup  @relation(fields: [adGroupId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([keywordText, adGroupId])
+}
+
+// One row per field change made through this tool (bid, budget, state,
+// target ACOS, tags, ...). Written after a change succeeds — for
+// Amazon-pushed fields that means after the API call succeeds, not before.
+model ChangeLog {
+  id         String   @id @default(cuid())
+  entityType String // campaign | keyword | negativeKeywordSuggestion | adGroup
+  entityId   String // our db id for that entity
+  field      String
+  oldValue   String?
+  newValue   String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
