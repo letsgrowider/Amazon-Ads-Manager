@@ -5,22 +5,38 @@ import { NextRequest, NextResponse } from "next/server";
 // /api/cron/* is excluded: it's called by a non-interactive scheduler that
 // can't complete a Basic Auth prompt, and already has its own bearer-token
 // check (see app/api/cron/sync/route.ts).
+//
+// ADMIN_CREDENTIALS holds every team member's login as "user:pass" pairs,
+// comma-separated — there's no per-user data scoping in this app (everyone
+// who authenticates sees every linked account), so this is purely a gate,
+// not an authorization system.
+function validCredentials(): Set<string> {
+  const raw = process.env.ADMIN_CREDENTIALS;
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((pair) => pair.trim())
+      .filter(Boolean)
+      .map((pair) => "Basic " + Buffer.from(pair).toString("base64"))
+  );
+}
+
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/cron/")) {
     return NextResponse.next();
   }
 
-  const username = process.env.ADMIN_USERNAME;
-  const password = process.env.ADMIN_PASSWORD;
-  if (!username || !password) {
+  const credentials = validCredentials();
+  if (credentials.size === 0) {
     // Not configured — fail open rather than lock everyone out of local
-    // dev, but ADMIN_USERNAME/ADMIN_PASSWORD MUST be set before this is
-    // hosted anywhere reachable outside your own machine.
+    // dev, but ADMIN_CREDENTIALS MUST be set before this is hosted
+    // anywhere reachable outside your own machine.
     return NextResponse.next();
   }
 
-  const expected = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
-  if (request.headers.get("authorization") === expected) {
+  const provided = request.headers.get("authorization");
+  if (provided && credentials.has(provided)) {
     return NextResponse.next();
   }
 
