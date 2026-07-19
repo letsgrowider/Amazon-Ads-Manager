@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { AmazonAdsClient, type AmazonRegion } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 const MATCH_TYPE_MAP: Record<string, "EXACT" | "PHRASE" | "BROAD"> = {
   exact: "EXACT",
@@ -15,7 +16,7 @@ const DEFAULT_BID = 0.5; // Amazon rejects a $0 bid; used only if no suggestedBi
 // Pushes a locally-queued keyword-harvest suggestion to Amazon for real —
 // these were previously local-only (see the model's doc comment), so
 // "queued" suggestions never actually became a live keyword.
-export async function POST(_request: Request, ctx: RouteContext<"/api/keyword-harvest/[id]/push">) {
+export async function POST(request: Request, ctx: RouteContext<"/api/keyword-harvest/[id]/push">) {
   const { id } = await ctx.params;
 
   const suggestion = await prisma.keywordHarvestSuggestion.findUnique({
@@ -58,7 +59,7 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/keyword-ha
     }
 
     await prisma.keywordHarvestSuggestion.update({ where: { id }, data: { status: "added" } });
-    await logChange("keywordHarvestSuggestion", id, "status", suggestion.status, "added");
+    await logChange("keywordHarvestSuggestion", id, "status", suggestion.status, "added", currentUser(request));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

@@ -61,7 +61,7 @@ export async function applyDaypartingSchedule(): Promise<DaypartingResult[]> {
         },
       ]);
       await prisma.campaign.update({ where: { id: campaign.id }, data: { state: desiredState } });
-      await logChange("campaign", campaign.id, "state", campaign.state, desiredState);
+      await logChange("campaign", campaign.id, "state", campaign.state, desiredState, "system:dayparting");
     } catch (err) {
       result.error = (err as Error).message;
     }

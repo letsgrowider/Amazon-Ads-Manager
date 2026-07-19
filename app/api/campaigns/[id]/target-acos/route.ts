@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campaigns/[id]/target-acos">) {
   const { id } = await ctx.params;
@@ -16,6 +17,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
   }
 
   const campaign = await prisma.campaign.update({ where: { id }, data: { targetAcos } });
-  await logChange("campaign", id, "targetAcos", existing.targetAcos, targetAcos);
+  await logChange("campaign", id, "targetAcos", existing.targetAcos, targetAcos, currentUser(request));
   return NextResponse.json({ campaign });
 }

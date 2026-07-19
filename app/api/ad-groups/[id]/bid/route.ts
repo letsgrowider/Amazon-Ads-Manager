@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { AmazonAdsClient, type AmazonRegion } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/ad-groups/[id]/bid">) {
   const { id } = await ctx.params;
@@ -34,6 +35,6 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/ad-group
   }
 
   const updated = await prisma.adGroup.update({ where: { id }, data: { defaultBid } });
-  await logChange("adGroup", id, "defaultBid", adGroup.defaultBid, defaultBid);
+  await logChange("adGroup", id, "defaultBid", adGroup.defaultBid, defaultBid, currentUser(request));
   return NextResponse.json({ adGroup: updated });
 }

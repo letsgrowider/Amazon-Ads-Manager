@@ -20,6 +20,12 @@ function formatValue(field: string, value: string | null, currencyCode: string |
   return value;
 }
 
+function formatChangedBy(changedBy: string | null) {
+  if (!changedBy) return "—";
+  if (changedBy.startsWith("system:")) return `Automated (${changedBy.slice("system:".length)})`;
+  return changedBy;
+}
+
 export default async function HistoryPage() {
   const logs = await getChangeHistory();
 
@@ -43,6 +49,7 @@ export default async function HistoryPage() {
             <thead>
               <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
                 <th className="py-2">When</th>
+                <th className="py-2">By</th>
                 <th className="py-2">Entity</th>
                 <th className="py-2">Field</th>
                 <th className="py-2">Change</th>
@@ -54,6 +61,7 @@ export default async function HistoryPage() {
                   <td className="py-2 text-zinc-500">
                     {log.createdAt.toISOString().slice(0, 16).replace("T", " ")}
                   </td>
+                  <td className="py-2 text-zinc-600 dark:text-zinc-400">{formatChangedBy(log.changedBy)}</td>
                   <td className="py-2 text-black dark:text-zinc-50">
                     {log.href ? (
                       <Link href={log.href} className="hover:underline">

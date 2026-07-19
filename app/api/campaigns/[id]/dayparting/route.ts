@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 // Local-only schedule config — no immediate Amazon push. Actually applying
 // the schedule happens on the next scheduled run of `npm run dayparting`
@@ -37,13 +38,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
     where: { id },
     data: { daypartingEnabled: nextEnabled, daypartingHours: nextHours },
   });
-  await logChange("campaign", id, "daypartingEnabled", existing.daypartingEnabled, nextEnabled);
+  const user = currentUser(request);
+  await logChange("campaign", id, "daypartingEnabled", existing.daypartingEnabled, nextEnabled, user);
   await logChange(
     "campaign",
     id,
     "daypartingHours",
     existing.daypartingHours.join(","),
-    nextHours.join(",")
+    nextHours.join(","),
+    user
   );
   return NextResponse.json({ campaign });
 }

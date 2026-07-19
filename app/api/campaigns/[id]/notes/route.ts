@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 // Notes are local-only context, not an Amazon Ads concept — no API push.
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campaigns/[id]/notes">) {
@@ -18,6 +19,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
 
   const cleaned = notes?.trim() || null;
   const campaign = await prisma.campaign.update({ where: { id }, data: { notes: cleaned } });
-  await logChange("campaign", id, "notes", existing.notes, cleaned);
+  await logChange("campaign", id, "notes", existing.notes, cleaned, currentUser(request));
   return NextResponse.json({ campaign });
 }

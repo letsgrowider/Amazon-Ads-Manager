@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 // Tags are local-only organization, not an Amazon Ads concept — no API push.
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campaigns/[id]/tags">) {
@@ -18,6 +19,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
 
   const cleaned = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
   const campaign = await prisma.campaign.update({ where: { id }, data: { tags: cleaned } });
-  await logChange("campaign", id, "tags", existing.tags.join(", "), cleaned.join(", "));
+  await logChange("campaign", id, "tags", existing.tags.join(", "), cleaned.join(", "), currentUser(request));
   return NextResponse.json({ campaign });
 }

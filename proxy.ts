@@ -10,16 +10,18 @@ import { NextRequest, NextResponse } from "next/server";
 // comma-separated — there's no per-user data scoping in this app (everyone
 // who authenticates sees every linked account), so this is purely a gate,
 // not an authorization system.
-function validCredentials(): Set<string> {
+// Maps the base64-encoded "Basic ..." header value back to the plain
+// username, so a matched request can be attributed to who's logged in
+// (see lib/current-user.ts) without storing the password anywhere further.
+function validCredentials(): Map<string, string> {
   const raw = process.env.ADMIN_CREDENTIALS;
-  if (!raw) return new Set();
-  return new Set(
-    raw
-      .split(",")
-      .map((pair) => pair.trim())
-      .filter(Boolean)
-      .map((pair) => "Basic " + Buffer.from(pair).toString("base64"))
-  );
+  const map = new Map<string, string>();
+  if (!raw) return map;
+  for (const pair of raw.split(",").map((p) => p.trim()).filter(Boolean)) {
+    const username = pair.split(":")[0];
+    map.set("Basic " + Buffer.from(pair).toString("base64"), username);
+  }
+  return map;
 }
 
 export function proxy(request: NextRequest) {
@@ -36,8 +38,11 @@ export function proxy(request: NextRequest) {
   }
 
   const provided = request.headers.get("authorization");
-  if (provided && credentials.has(provided)) {
-    return NextResponse.next();
+  const username = provided ? credentials.get(provided) : undefined;
+  if (username) {
+    const headers = new Headers(request.headers);
+    headers.set("x-rankwider-user", username);
+    return NextResponse.next({ request: { headers } });
   }
 
   return new NextResponse("Authentication required", {

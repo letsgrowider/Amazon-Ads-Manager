@@ -210,6 +210,7 @@ model ChangeLog {
   field      String
   oldValue   String?
   newValue   String?
+  changedBy  String? // Basic Auth username, or a "system:*" label for automated changes
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])

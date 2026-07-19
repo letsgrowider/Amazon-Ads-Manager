@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/negative-keywords/[id]">) {
   const { id } = await ctx.params;
@@ -16,6 +17,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/negati
   }
 
   const suggestion = await prisma.negativeKeywordSuggestion.update({ where: { id }, data: { status } });
-  await logChange("negativeKeywordSuggestion", id, "status", existing.status, status);
+  await logChange("negativeKeywordSuggestion", id, "status", existing.status, status, currentUser(request));
   return NextResponse.json({ suggestion });
 }

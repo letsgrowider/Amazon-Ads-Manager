@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { AmazonAdsClient, type AmazonRegion } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 const MATCH_TYPE_MAP: Record<string, "NEGATIVE_EXACT" | "NEGATIVE_PHRASE"> = {
   negativeExact: "NEGATIVE_EXACT",
@@ -12,7 +13,7 @@ const MATCH_TYPE_MAP: Record<string, "NEGATIVE_EXACT" | "NEGATIVE_PHRASE"> = {
 // Pushes a locally-queued negative-keyword suggestion to Amazon for real —
 // these were previously local-only (see the model's doc comment), so
 // "queued" suggestions never actually did anything to the live account.
-export async function POST(_request: Request, ctx: RouteContext<"/api/negative-keywords/[id]/push">) {
+export async function POST(request: Request, ctx: RouteContext<"/api/negative-keywords/[id]/push">) {
   const { id } = await ctx.params;
 
   const suggestion = await prisma.negativeKeywordSuggestion.findUnique({
@@ -54,7 +55,7 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/negative-k
     }
 
     await prisma.negativeKeywordSuggestion.update({ where: { id }, data: { status: "pushed" } });
-    await logChange("negativeKeywordSuggestion", id, "status", suggestion.status, "pushed");
+    await logChange("negativeKeywordSuggestion", id, "status", suggestion.status, "pushed", currentUser(request));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

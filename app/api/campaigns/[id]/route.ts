@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { AmazonAdsClient, type AmazonRegion } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campaigns/[id]">) {
   const { id } = await ctx.params;
@@ -59,7 +60,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
     where: { id },
     data: { state: nextState, dailyBudget: nextBudget },
   });
-  await logChange("campaign", id, "state", campaign.state, nextState);
-  await logChange("campaign", id, "dailyBudget", campaign.dailyBudget, nextBudget);
+  const user = currentUser(request);
+  await logChange("campaign", id, "state", campaign.state, nextState, user);
+  await logChange("campaign", id, "dailyBudget", campaign.dailyBudget, nextBudget, user);
   return NextResponse.json({ campaign: updated });
 }

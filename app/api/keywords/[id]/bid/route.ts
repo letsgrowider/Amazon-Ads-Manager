@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { AmazonAdsClient, type AmazonRegion } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/keywords/[id]/bid">) {
   const { id } = await ctx.params;
@@ -33,6 +34,6 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/keywords
   }
 
   const updated = await prisma.keyword.update({ where: { id }, data: { bid } });
-  await logChange("keyword", id, "bid", keyword.bid, bid);
+  await logChange("keyword", id, "bid", keyword.bid, bid, currentUser(request));
   return NextResponse.json({ keyword: updated });
 }

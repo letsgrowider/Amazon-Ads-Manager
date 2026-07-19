@@ -8,14 +8,15 @@ export async function logChange(
   entityId: string,
   field: string,
   oldValue: unknown,
-  newValue: unknown
+  newValue: unknown,
+  changedBy?: string | null
 ) {
   const oldStr = oldValue === undefined || oldValue === null ? null : String(oldValue);
   const newStr = newValue === undefined || newValue === null ? null : String(newValue);
   if (oldStr === newStr) return;
 
   await prisma.changeLog.create({
-    data: { entityType, entityId, field, oldValue: oldStr, newValue: newStr },
+    data: { entityType, entityId, field, oldValue: oldStr, newValue: newStr, changedBy: changedBy ?? null },
   });
 }
 

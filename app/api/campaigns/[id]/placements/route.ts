@@ -4,6 +4,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { AmazonAdsClient, type AmazonRegion, type PlacementBiddingInput } from "@/lib/amazon-ads";
 import { getValidAccessToken } from "@/lib/amazon-account";
 import { logChange } from "@/lib/audit";
+import { currentUser } from "@/lib/current-user";
 
 const VALID_PLACEMENTS = ["PLACEMENT_TOP", "PLACEMENT_PRODUCT_PAGE", "PLACEMENT_REST_OF_SEARCH"];
 
@@ -64,7 +65,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
     id,
     "placementBidding",
     JSON.stringify(campaign.placementBidding),
-    JSON.stringify(placementBidding)
+    JSON.stringify(placementBidding),
+    currentUser(request)
   );
   return NextResponse.json({ campaign: updated });
 }
