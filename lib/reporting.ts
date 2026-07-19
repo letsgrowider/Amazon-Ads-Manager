@@ -70,14 +70,15 @@ export type SearchTermSortBy = "spend" | "clicks" | "orders" | "acos" | "roas";
 
 export async function getSearchTermRows(
   range: DateRange,
-  options: { campaignId?: string; sortBy?: SearchTermSortBy; sortDir?: "asc" | "desc" } = {}
+  options: { campaignId?: string; search?: string; sortBy?: SearchTermSortBy; sortDir?: "asc" | "desc" } = {}
 ) {
-  const { campaignId, sortBy = "spend", sortDir = "desc" } = options;
+  const { campaignId, search, sortBy = "spend", sortDir = "desc" } = options;
 
   const rows = await prisma.searchTermReport.findMany({
     where: {
       date: { gte: range.since, lte: range.until },
       ...(campaignId ? { campaignId } : {}),
+      ...(search ? { searchTerm: { contains: search, mode: "insensitive" } } : {}),
     },
     // DB-level orderBy just keeps the biggest-spend rows if this ever hits
     // the cap below — acos/roas/clicks/orders sorting happens in JS after,
@@ -130,12 +131,15 @@ export type KeywordSortBy = "spend" | "clicks" | "orders" | "acos" | "roas" | "b
 
 export async function getKeywordRows(
   range: DateRange,
-  options: { campaignId?: string; sortBy?: KeywordSortBy; sortDir?: "asc" | "desc" } = {}
+  options: { campaignId?: string; search?: string; sortBy?: KeywordSortBy; sortDir?: "asc" | "desc" } = {}
 ) {
-  const { campaignId, sortBy = "spend", sortDir = "desc" } = options;
+  const { campaignId, search, sortBy = "spend", sortDir = "desc" } = options;
 
   const keywords = await prisma.keyword.findMany({
-    where: campaignId ? { adGroup: { campaign: { campaignId } } } : {},
+    where: {
+      ...(campaignId ? { adGroup: { campaign: { campaignId } } } : {}),
+      ...(search ? { keywordText: { contains: search, mode: "insensitive" } } : {}),
+    },
     include: { adGroup: { include: { campaign: { include: { profile: true } } } } },
   });
 

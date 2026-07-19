@@ -4,6 +4,7 @@ import { KeywordsTable } from "@/app/keywords/KeywordsTable";
 import { getKeywordRows, type KeywordSortBy } from "@/lib/reporting";
 import { resolveDateRange, rangeToQuery } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
+import { SavedViews } from "@/app/SavedViews";
 
 const SORT_KEYS: KeywordSortBy[] = ["spend", "clicks", "orders", "acos", "roas", "bid"];
 
@@ -11,13 +12,14 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
   const resolvedSearchParams = await searchParams;
   const range = resolveDateRange(resolvedSearchParams);
   const campaignId = typeof resolvedSearchParams.campaign === "string" ? resolvedSearchParams.campaign : undefined;
+  const search = typeof resolvedSearchParams.q === "string" && resolvedSearchParams.q.trim() ? resolvedSearchParams.q.trim() : undefined;
   const sortBy: KeywordSortBy = SORT_KEYS.includes(resolvedSearchParams.sort as KeywordSortBy)
     ? (resolvedSearchParams.sort as KeywordSortBy)
     : "spend";
   const sortDir: "asc" | "desc" = resolvedSearchParams.dir === "asc" ? "asc" : "desc";
 
   const [rows, campaigns] = await Promise.all([
-    getKeywordRows(range, { campaignId, sortBy, sortDir }),
+    getKeywordRows(range, { campaignId, search, sortBy, sortDir }),
     prisma.campaign.findMany({
       where: { state: { in: ["enabled", "paused"] } },
       select: { campaignId: true, name: true },
@@ -27,6 +29,7 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
 
   const rangeQs = rangeToQuery(range);
   const campaignQs = campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : "";
+  const searchQs = search ? `&q=${encodeURIComponent(search)}` : "";
 
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
@@ -41,7 +44,7 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
           <div className="flex flex-wrap items-center gap-4">
             <DateRangeControl range={range} basePath="/keywords" />
             <a
-              href={`/api/export/keywords?${rangeQs}${campaignQs}`}
+              href={`/api/export/keywords?${rangeQs}${campaignQs}${searchQs}`}
               className="text-sm text-zinc-500 hover:underline"
             >
               Export CSV
@@ -72,6 +75,13 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
               </option>
             ))}
           </select>
+          <input
+            type="text"
+            name="q"
+            defaultValue={search ?? ""}
+            placeholder="Search keyword text..."
+            className="rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+          />
           <button
             type="submit"
             className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-white/[.06]"
@@ -79,6 +89,8 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
             Filter
           </button>
         </form>
+
+        <SavedViews />
 
         {rows.length === 0 ? (
           <p className="text-zinc-600 dark:text-zinc-400">
@@ -101,7 +113,7 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
               roas,
             }))}
             rangeQs={rangeQs}
-            campaignQs={campaignQs}
+            campaignQs={`${campaignQs}${searchQs}`}
             sortBy={sortBy}
             sortDir={sortDir}
           />

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DismissButton } from "@/app/DismissButton";
 import { PushButton } from "@/app/PushButton";
+import { BulkPushButton } from "@/app/BulkPushButton";
+
+export const dynamic = "force-dynamic";
 
 async function getSuggestions() {
   return prisma.negativeKeywordSuggestion.findMany({
@@ -35,7 +38,10 @@ export default async function NegativeKeywordsPage() {
         </div>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-500">Queued ({queued.length})</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-zinc-500">Queued ({queued.length})</h2>
+            <BulkPushButton ids={queued.map((s) => s.id)} apiPath="/api/negative-keywords" />
+          </div>
           {queued.length === 0 ? (
             <p className="text-sm text-zinc-500">Nothing queued yet.</p>
           ) : (

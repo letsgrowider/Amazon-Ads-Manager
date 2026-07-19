@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getChangeHistory } from "@/lib/audit";
 import { formatMoney } from "@/lib/currency";
 
+export const dynamic = "force-dynamic";
+
 const FIELD_LABELS: Record<string, string> = {
   bid: "Bid",
   state: "State",

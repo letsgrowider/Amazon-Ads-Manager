@@ -11,6 +11,7 @@ import {
 } from "@/lib/reporting";
 import { resolveDateRange, rangeToQuery } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
+import { SavedViews } from "@/app/SavedViews";
 import { formatMoney } from "@/lib/currency";
 
 const SORT_KEYS: SearchTermSortBy[] = ["spend", "clicks", "orders", "acos", "roas"];
@@ -19,13 +20,14 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
   const resolvedSearchParams = await searchParams;
   const range = resolveDateRange(resolvedSearchParams);
   const campaignId = typeof resolvedSearchParams.campaign === "string" ? resolvedSearchParams.campaign : undefined;
+  const search = typeof resolvedSearchParams.q === "string" && resolvedSearchParams.q.trim() ? resolvedSearchParams.q.trim() : undefined;
   const sortBy: SearchTermSortBy = SORT_KEYS.includes(resolvedSearchParams.sort as SearchTermSortBy)
     ? (resolvedSearchParams.sort as SearchTermSortBy)
     : "spend";
   const sortDir: "asc" | "desc" = resolvedSearchParams.dir === "asc" ? "asc" : "desc";
 
   const [rows, campaigns] = await Promise.all([
-    getSearchTermRows(range, { campaignId, sortBy, sortDir }),
+    getSearchTermRows(range, { campaignId, search, sortBy, sortDir }),
     prisma.campaign.findMany({
       where: { state: { in: ["enabled", "paused"] } },
       select: { campaignId: true, name: true },
@@ -38,10 +40,11 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
 
   const rangeQs = rangeToQuery(range);
   const campaignQs = campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : "";
+  const searchQs = search ? `&q=${encodeURIComponent(search)}` : "";
 
   function sortHref(key: SearchTermSortBy) {
     const nextDir = sortBy === key && sortDir === "desc" ? "asc" : "desc";
-    return `/search-terms?${rangeQs}${campaignQs}&sort=${key}&dir=${nextDir}`;
+    return `/search-terms?${rangeQs}${campaignQs}${searchQs}&sort=${key}&dir=${nextDir}`;
   }
 
   function sortIndicator(key: SearchTermSortBy) {
@@ -74,7 +77,7 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
             )}
             <DateRangeControl range={range} basePath="/search-terms" />
             <a
-              href={`/api/export/search-terms?${rangeQs}${campaignQs}`}
+              href={`/api/export/search-terms?${rangeQs}${campaignQs}${searchQs}`}
               className="text-sm text-zinc-500 hover:underline"
             >
               Export CSV
@@ -105,6 +108,13 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
               </option>
             ))}
           </select>
+          <input
+            type="text"
+            name="q"
+            defaultValue={search ?? ""}
+            placeholder="Search term text..."
+            className="rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+          />
           <button
             type="submit"
             className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium hover:bg-black/[.04] dark:border-zinc-700 dark:hover:bg-white/[.06]"
@@ -112,6 +122,8 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
             Filter
           </button>
         </form>
+
+        <SavedViews />
 
         {rows.length === 0 ? (
           <p className="text-zinc-600 dark:text-zinc-400">

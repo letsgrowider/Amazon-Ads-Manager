@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getCampaignRows, type CampaignStateFilter } from "@/lib/reporting";
 import { resolveDateRange, rangeToQuery, previousPeriod } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
+import { SavedViews } from "@/app/SavedViews";
 import { AccountSwitcher } from "@/app/AccountSwitcher";
 import { CampaignsTable } from "@/app/campaigns/CampaignsTable";
 
@@ -55,6 +56,8 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
             </a>
           </div>
         </div>
+
+        <SavedViews />
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-zinc-500">State:</span>

@@ -6,7 +6,8 @@ import { toCsv, csvResponse } from "@/lib/csv";
 export async function GET(request: NextRequest) {
   const range = resolveDateRange(Object.fromEntries(request.nextUrl.searchParams));
   const campaignId = request.nextUrl.searchParams.get("campaign") ?? undefined;
-  const rows = await getSearchTermRows(range, { campaignId });
+  const search = request.nextUrl.searchParams.get("q") ?? undefined;
+  const rows = await getSearchTermRows(range, { campaignId, search });
   const csv = toCsv(
     ["Search Term", "Campaign", "Ad Group", "Currency", "Clicks", "Spend", "Orders", "ACOS", "ROAS", "Wasted Spend Candidate"],
     rows.map(({ row, campaignName, adGroupName, currencyCode, acos, roas, isWastedSpend }) => [

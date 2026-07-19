@@ -17,6 +17,12 @@ import { resolveDateRange, previousPeriod, percentChange, rangeToQuery } from "@
 import { ChangeBadge } from "@/app/ChangeBadge";
 import { TrendChart } from "@/app/TrendChart";
 import { formatMoney, currencySymbol, uniformCurrency } from "@/lib/currency";
+import {
+  getEstimatedSavings,
+  getOptimizationScore,
+  getAchievements,
+  getProfileLeaderboard,
+} from "@/lib/gamification";
 
 async function getAccounts() {
   try {
@@ -70,6 +76,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const lastSyncedAt = hasAccounts ? await getLastSyncedAt(profileId) : null;
   const suggestionCounts = hasAccounts ? await getQueuedSuggestionCounts() : { negativeKeywords: 0, keywordHarvest: 0 };
   const syncIsStale = lastSyncedAt !== null && Date.now() - lastSyncedAt.getTime() > STALE_SYNC_HOURS * 3600_000;
+  const estimatedSavings = hasAccounts ? await getEstimatedSavings(profileId) : 0;
+  const optimizationScore = hasAccounts ? await getOptimizationScore(profileId) : null;
+  const achievements = hasAccounts ? await getAchievements() : [];
+  const leaderboard = hasAccounts && !profileId && profileOptions.length > 1 ? await getProfileLeaderboard(range) : [];
 
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
@@ -329,6 +339,91 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   lineUnit="percent"
                   currencySymbol={currencySymbol(activeCurrency)}
                 />
+              </div>
+            )}
+          </section>
+        )}
+
+        {hasAccounts && optimizationScore && (
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-medium text-zinc-500">Performance</h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+                <div className="text-xs text-zinc-500" title="Est. from bid cuts you've made — old bid minus new bid, times clicks in the 30 days after">
+                  Estimated savings
+                </div>
+                <div className="text-xl font-semibold text-green-600 dark:text-green-400">
+                  {formatMoney(estimatedSavings, activeCurrency)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+                <div className="text-xs text-zinc-500">Optimization score</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-xl font-semibold text-black dark:text-zinc-50">
+                    {optimizationScore.score}
+                    <span className="text-sm text-zinc-400">/100</span>
+                  </div>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                  <div
+                    className={`h-full rounded-full ${optimizationScore.score >= 70 ? "bg-green-500" : optimizationScore.score >= 40 ? "bg-amber-500" : "bg-red-500"}`}
+                    style={{ width: `${optimizationScore.score}%` }}
+                  />
+                </div>
+              </div>
+              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+                <div className="text-xs text-zinc-500">Achievements</div>
+                <div className="text-xl font-semibold text-black dark:text-zinc-50">
+                  {achievements.filter((a) => a.achieved).length} / {achievements.length}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {achievements.map((a) => (
+                <span
+                  key={a.id}
+                  title={a.description}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                    a.achieved
+                      ? "border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+                      : "border-zinc-200 text-zinc-400 dark:border-zinc-800 dark:text-zinc-600"
+                  }`}
+                >
+                  {a.achieved ? "✓ " : "○ "}
+                  {a.label}
+                </span>
+              ))}
+            </div>
+
+            {leaderboard.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-medium text-zinc-500">Leaderboard — ACOS improvement vs. previous period</h3>
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
+                      <th className="py-2">Profile</th>
+                      <th className="py-2 text-right">ACOS</th>
+                      <th className="py-2 text-right">Previous</th>
+                      <th className="py-2 text-right">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((entry, i) => (
+                      <tr key={entry.profileId} className="border-b border-zinc-100 dark:border-zinc-900">
+                        <td className="py-2 text-black dark:text-zinc-50">
+                          {i === 0 && entry.improvement > 0 ? "🏆 " : ""}
+                          {entry.label}
+                        </td>
+                        <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">{entry.acos.toFixed(1)}%</td>
+                        <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">{entry.prevAcos.toFixed(1)}%</td>
+                        <td className="py-2 text-right">
+                          <ChangeBadge pct={entry.prevAcos > 0 ? ((entry.acos - entry.prevAcos) / entry.prevAcos) * 100 : 0} invert />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
