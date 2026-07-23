@@ -36,6 +36,7 @@ model Profile {
   // country (e.g. multiple India entities under one EU-region login) —
   // countryCode alone is ambiguous there.
   entityName      String?
+  syncEnabled     Boolean  @default(true)
   accountId       String
   account         AmazonAccount @relation(fields: [accountId], references: [id])
   createdAt       DateTime @default(now())

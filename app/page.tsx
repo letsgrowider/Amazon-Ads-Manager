@@ -173,6 +173,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 History
               </Link>
             )}
+            {accounts !== null && accounts.length > 0 && (
+              <Link
+                href="/accounts"
+                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
+              >
+                Manage Accounts
+              </Link>
+            )}
             {accounts !== null && accounts.length > 0 && <SyncButton />}
             {accounts !== null && accounts.length > 0 && <DaypartingRunButton />}
             <a

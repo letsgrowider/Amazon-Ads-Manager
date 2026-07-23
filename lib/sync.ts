@@ -597,6 +597,7 @@ export async function syncAllAccounts(): Promise<Record<string, ProfileSyncResul
     try {
       const accessToken = await getValidAccessToken(account);
       for (const profile of account.profiles) {
+        if (!profile.syncEnabled) continue;
         tasks.push({ accountId: account.id, accountName: account.name, region: account.region as ProfileTask["region"], accessToken, profile });
       }
     } catch (err) {

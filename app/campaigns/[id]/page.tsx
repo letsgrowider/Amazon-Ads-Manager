@@ -6,7 +6,7 @@ import { resolveDateRange, type DateRange } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
 import { TrendChart } from "@/app/TrendChart";
 import { TargetAcosEditor } from "@/app/campaigns/[id]/TargetAcosEditor";
-import { ApplySuggestionButton } from "@/app/campaigns/[id]/ApplySuggestionButton";
+import { BidSuggestionsTable } from "@/app/campaigns/[id]/BidSuggestionsTable";
 import { CampaignControls } from "@/app/campaigns/[id]/CampaignControls";
 import { TagEditor } from "@/app/campaigns/[id]/TagEditor";
 import { AdGroupBidEditor } from "@/app/campaigns/[id]/AdGroupBidEditor";
@@ -205,42 +205,17 @@ export default async function CampaignDetailPage({
                 performance data yet in this range.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
-                      <th className="py-2">Keyword</th>
-                      <th className="py-2">Ad group</th>
-                      <th className="py-2 text-right">Ad group ACOS</th>
-                      <th className="py-2 text-right">Current bid</th>
-                      <th className="py-2 text-right">Suggested bid</th>
-                      <th className="py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {actionableSuggestions.map((s) => (
-                      <tr key={s.keywordId} className="border-b border-zinc-100 dark:border-zinc-900">
-                        <td className="py-2 text-black dark:text-zinc-50">{s.keywordText}</td>
-                        <td className="py-2 text-zinc-600 dark:text-zinc-400">{s.adGroupName}</td>
-                        <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">
-                          {s.adGroupAcos?.toFixed(1)}%
-                        </td>
-                        <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">
-                          {formatMoney(s.currentBid, currency)}
-                        </td>
-                        <td
-                          className={`py-2 text-right font-medium ${s.suggestedBid! > s.currentBid ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                        >
-                          {formatMoney(s.suggestedBid!, currency)}
-                        </td>
-                        <td className="py-2 text-right">
-                          <ApplySuggestionButton keywordId={s.keywordId} suggestedBid={s.suggestedBid!} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <BidSuggestionsTable
+                rows={actionableSuggestions.map((s) => ({
+                  keywordId: s.keywordId,
+                  keywordText: s.keywordText,
+                  adGroupName: s.adGroupName,
+                  adGroupAcos: s.adGroupAcos,
+                  currentBid: s.currentBid,
+                  suggestedBid: s.suggestedBid!,
+                }))}
+                currency={currency}
+              />
             )}
           </section>
         )}
