@@ -55,7 +55,11 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
               basePath="/campaigns"
               extraQuery={`${rangeQs}${tagQs}${stateQs}`}
             />
-            <DateRangeControl range={range} basePath="/campaigns" />
+            <DateRangeControl
+              range={range}
+              basePath="/campaigns"
+              extraQuery={`${profileQs}${tagQs}${stateQs}`}
+            />
             <a href={`/api/export/campaigns?${rangeQs}`} className="text-sm text-zinc-500 hover:underline">
               Export CSV
             </a>

@@ -12,6 +12,7 @@ import {
 import { resolveDateRange, rangeToQuery } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
 import { SavedViews } from "@/app/SavedViews";
+import { AccountSwitcher } from "@/app/AccountSwitcher";
 import { formatMoney } from "@/lib/currency";
 
 const SORT_KEYS: SearchTermSortBy[] = ["spend", "clicks", "orders", "acos", "roas"];
@@ -19,6 +20,7 @@ const SORT_KEYS: SearchTermSortBy[] = ["spend", "clicks", "orders", "acos", "roa
 export default async function SearchTermsPage({ searchParams }: PageProps<"/search-terms">) {
   const resolvedSearchParams = await searchParams;
   const range = resolveDateRange(resolvedSearchParams);
+  const profileId = typeof resolvedSearchParams.profile === "string" ? resolvedSearchParams.profile : undefined;
   const campaignId = typeof resolvedSearchParams.campaign === "string" ? resolvedSearchParams.campaign : undefined;
   const search = typeof resolvedSearchParams.q === "string" && resolvedSearchParams.q.trim() ? resolvedSearchParams.q.trim() : undefined;
   const sortBy: SearchTermSortBy = SORT_KEYS.includes(resolvedSearchParams.sort as SearchTermSortBy)
@@ -26,10 +28,17 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
     : "spend";
   const sortDir: "asc" | "desc" = resolvedSearchParams.dir === "asc" ? "asc" : "desc";
 
+  const accounts = await prisma.amazonAccount.findMany({
+    select: { name: true, profiles: { select: { id: true, countryCode: true, entityName: true } } },
+  });
+  const profileOptions = accounts.flatMap((a) =>
+    a.profiles.map((p) => ({ id: p.id, countryCode: p.countryCode, accountName: a.name, entityName: p.entityName }))
+  );
+
   const [rows, campaigns] = await Promise.all([
-    getSearchTermRows(range, { campaignId, search, sortBy, sortDir }),
+    getSearchTermRows(range, { campaignId, profileId, search, sortBy, sortDir }),
     prisma.campaign.findMany({
-      where: { state: { in: ["enabled", "paused"] } },
+      where: { state: { in: ["enabled", "paused"] }, ...(profileId ? { profileId } : {}) },
       select: { campaignId: true, name: true },
       orderBy: { name: "asc" },
     }),
@@ -39,12 +48,13 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
   const harvestCandidateCount = rows.filter((r) => r.isHarvestCandidate).length;
 
   const rangeQs = rangeToQuery(range);
+  const profileQs = profileId ? `&profile=${profileId}` : "";
   const campaignQs = campaignId ? `&campaign=${encodeURIComponent(campaignId)}` : "";
   const searchQs = search ? `&q=${encodeURIComponent(search)}` : "";
 
   function sortHref(key: SearchTermSortBy) {
     const nextDir = sortBy === key && sortDir === "desc" ? "asc" : "desc";
-    return `/search-terms?${rangeQs}${campaignQs}${searchQs}&sort=${key}&dir=${nextDir}`;
+    return `/search-terms?${rangeQs}${profileQs}${campaignQs}${searchQs}&sort=${key}&dir=${nextDir}`;
   }
 
   function sortIndicator(key: SearchTermSortBy) {
@@ -75,14 +85,27 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
                 {HARVEST_MIN_ORDERS} order, ≥{HARVEST_MIN_CLICKS} clicks)
               </p>
             )}
-            <DateRangeControl range={range} basePath="/search-terms" />
+            <DateRangeControl
+              range={range}
+              basePath="/search-terms"
+              extraQuery={`${profileQs}${campaignQs}${searchQs}&sort=${sortBy}&dir=${sortDir}`.replace(/^&/, "")}
+            />
             <a
-              href={`/api/export/search-terms?${rangeQs}${campaignQs}${searchQs}`}
+              href={`/api/export/search-terms?${rangeQs}${profileQs}${campaignQs}${searchQs}`}
               className="text-sm text-zinc-500 hover:underline"
             >
               Export CSV
             </a>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <AccountSwitcher
+            profiles={profileOptions}
+            activeProfileId={profileId}
+            basePath="/search-terms"
+            extraQuery={`${rangeQs}${campaignQs}${searchQs}&sort=${sortBy}&dir=${sortDir}`}
+          />
         </div>
 
         <form method="GET" action="/search-terms" className="flex flex-wrap items-center gap-2 text-sm">
@@ -95,6 +118,7 @@ export default async function SearchTermsPage({ searchParams }: PageProps<"/sear
           )}
           <input type="hidden" name="sort" value={sortBy} />
           <input type="hidden" name="dir" value={sortDir} />
+          {profileId && <input type="hidden" name="profile" value={profileId} />}
           <label className="text-zinc-500">Campaign:</label>
           <select
             name="campaign"

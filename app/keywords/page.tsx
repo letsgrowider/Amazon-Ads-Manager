@@ -42,7 +42,11 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
             <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">Keywords</h1>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <DateRangeControl range={range} basePath="/keywords" />
+            <DateRangeControl
+              range={range}
+              basePath="/keywords"
+              extraQuery={`${campaignQs}${searchQs}&sort=${sortBy}&dir=${sortDir}`.replace(/^&/, "")}
+            />
             <a
               href={`/api/export/keywords?${rangeQs}${campaignQs}${searchQs}`}
               className="text-sm text-zinc-500 hover:underline"

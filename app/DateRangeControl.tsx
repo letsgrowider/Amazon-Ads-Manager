@@ -3,14 +3,29 @@ import { RANGE_PRESETS, type DateRange } from "@/lib/date-range";
 
 // No client JS needed: presets are plain links, custom range is a native
 // GET form — both just navigate with different search params.
-export function DateRangeControl({ range, basePath }: { range: DateRange; basePath: string }) {
+//
+// extraQuery carries every OTHER filter the current page has active
+// (profile, tag, state, campaign, search, sort...) as a raw query string —
+// without it, switching date range silently dropped whatever the user had
+// selected (e.g. "All accounts" instead of the profile they'd picked).
+export function DateRangeControl({
+  range,
+  basePath,
+  extraQuery = "",
+}: {
+  range: DateRange;
+  basePath: string;
+  extraQuery?: string;
+}) {
+  const extraParams = new URLSearchParams(extraQuery);
+
   return (
     <div className="flex flex-wrap items-center gap-3 text-sm">
       <div className="flex items-center gap-1 rounded-full border border-zinc-300 p-1 dark:border-zinc-700">
         {RANGE_PRESETS.map((d) => (
           <Link
             key={d}
-            href={`${basePath}?days=${d}`}
+            href={`${basePath}?days=${d}${extraQuery ? `&${extraQuery}` : ""}`}
             className={`rounded-full px-3 py-1 ${
               range.days === String(d)
                 ? "bg-foreground text-background"
@@ -23,6 +38,9 @@ export function DateRangeControl({ range, basePath }: { range: DateRange; basePa
       </div>
       <form method="GET" action={basePath} className="flex items-center gap-1">
         <input type="hidden" name="days" value="custom" />
+        {[...extraParams.entries()].map(([key, value]) => (
+          <input key={key} type="hidden" name={key} value={value} />
+        ))}
         <input
           type="date"
           name="from"

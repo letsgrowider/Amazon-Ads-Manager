@@ -70,14 +70,28 @@ export type SearchTermSortBy = "spend" | "clicks" | "orders" | "acos" | "roas";
 
 export async function getSearchTermRows(
   range: DateRange,
-  options: { campaignId?: string; search?: string; sortBy?: SearchTermSortBy; sortDir?: "asc" | "desc" } = {}
+  options: {
+    campaignId?: string;
+    profileId?: string;
+    search?: string;
+    sortBy?: SearchTermSortBy;
+    sortDir?: "asc" | "desc";
+  } = {}
 ) {
-  const { campaignId, search, sortBy = "spend", sortDir = "desc" } = options;
+  const { campaignId, profileId, search, sortBy = "spend", sortDir = "desc" } = options;
+
+  // SearchTermReport is keyed by Amazon's raw campaignId, not our profile —
+  // scoping to a profile means resolving its campaigns' Amazon ids first.
+  let profileCampaignIds: string[] | undefined;
+  if (profileId && !campaignId) {
+    const profileCampaigns = await prisma.campaign.findMany({ where: { profileId }, select: { campaignId: true } });
+    profileCampaignIds = profileCampaigns.map((c) => c.campaignId);
+  }
 
   const rows = await prisma.searchTermReport.findMany({
     where: {
       date: { gte: range.since, lte: range.until },
-      ...(campaignId ? { campaignId } : {}),
+      ...(campaignId ? { campaignId } : profileCampaignIds ? { campaignId: { in: profileCampaignIds } } : {}),
       ...(search ? { searchTerm: { contains: search, mode: "insensitive" } } : {}),
     },
     // DB-level orderBy just keeps the biggest-spend rows if this ever hits

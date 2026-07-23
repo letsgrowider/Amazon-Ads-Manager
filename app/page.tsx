@@ -240,7 +240,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                     basePath="/"
                     extraQuery={rangeToQuery(range)}
                   />
-                  <DateRangeControl range={range} basePath="/" />
+                  <DateRangeControl range={range} basePath="/" extraQuery={profileId ? `profile=${profileId}` : ""} />
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
