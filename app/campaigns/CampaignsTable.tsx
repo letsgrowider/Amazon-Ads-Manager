@@ -7,11 +7,18 @@ import { ChangeBadge } from "@/app/ChangeBadge";
 import { percentChange } from "@/lib/date-range";
 import { formatMoney } from "@/lib/currency";
 
+const AD_PRODUCT_LABELS: Record<string, string> = {
+  SPONSORED_PRODUCTS: "Sponsored Products",
+  SPONSORED_BRANDS: "Sponsored Brands",
+  SPONSORED_DISPLAY: "Sponsored Display",
+};
+
 interface CampaignRow {
   id: string;
   name: string;
   state: string;
-  targetingType: string;
+  targetingType: string | null;
+  adProduct: string;
   notes: string | null;
   tags: string[];
   spend: number;
@@ -172,7 +179,9 @@ export function CampaignsTable({
                     note
                   </span>
                 )}
-                <div className="text-xs text-zinc-500">{r.targetingType}</div>
+                <div className="text-xs text-zinc-500">
+                  {r.targetingType ?? AD_PRODUCT_LABELS[r.adProduct] ?? r.adProduct}
+                </div>
                 {r.tags.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {r.tags.map((tag) => (

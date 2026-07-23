@@ -74,7 +74,11 @@ model Campaign {
   campaignId   String   @unique // Amazon's campaignId
   name         String
   state        String // enabled | paused | archived
-  targetingType String // manual | auto
+  // SPONSORED_PRODUCTS | SPONSORED_BRANDS | SPONSORED_DISPLAY — which Ads
+  // API product this campaign belongs to. Each has its own list/report
+  // endpoints; this is what the SP/SB/SD dashboard tabs filter on.
+  adProduct    String   @default("SPONSORED_PRODUCTS")
+  targetingType String? // manual | auto — an SP-only concept, null for SB/SD
   dailyBudget  Float
   startDate    DateTime? // Amazon requires this echoed back, unchanged, on every campaign PUT
   biddingStrategy String @default("legacy_for_sales") // dynamic bidding strategy, synced from Amazon

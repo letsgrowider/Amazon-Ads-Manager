@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { AmazonAdsClient, type AdsCampaign, type AdsAdGroup, type AdsKeyword } from "@/lib/amazon-ads";
+import { AmazonAdsClient, type AdsCampaign, type AdsAdGroup, type AdsKeyword, type SbCampaign } from "@/lib/amazon-ads";
 import { getValidAccessToken, forceRefreshAccessToken } from "@/lib/amazon-account";
 import { createAndDownloadReport } from "@/lib/amazon-reports";
 
@@ -118,19 +118,21 @@ async function upsertMetricSnapshot(key: MetricSnapshotKey, values: MetricSnapsh
 }
 
 async function syncStructure(client: AmazonAdsClient, dbProfileId: string) {
-  const [rawCampaigns, rawAdGroups, rawKeywords] = await Promise.all([
+  const [rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns] = await Promise.all([
     client.listCampaigns(),
     client.listAdGroups(),
     client.listKeywords(),
+    client.listSbCampaigns(),
   ]);
 
-  return serialized(() => persistStructure(rawCampaigns, rawAdGroups, rawKeywords, dbProfileId));
+  return serialized(() => persistStructure(rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns, dbProfileId));
 }
 
 async function persistStructure(
   rawCampaigns: AdsCampaign[],
   rawAdGroups: AdsAdGroup[],
   rawKeywords: AdsKeyword[],
+  rawSbCampaigns: SbCampaign[],
   dbProfileId: string
 ) {
   // Archived campaigns (and everything under them) are never managed again —
@@ -153,6 +155,7 @@ async function persistStructure(
         campaignId: c.campaignId,
         name: c.name,
         state: normalizeEnum(c.state),
+        adProduct: "SPONSORED_PRODUCTS",
         targetingType: normalizeEnum(c.targetingType),
         dailyBudget: c.budget?.budget ?? 0,
         startDate,
@@ -168,6 +171,33 @@ async function persistStructure(
         ...(startDate ? { startDate } : {}),
         ...(biddingStrategy ? { biddingStrategy } : {}),
         placementBidding,
+      },
+    });
+  }
+
+  // Sponsored Brands campaigns — structure only for now (no ad
+  // groups/keywords/reporting sync yet). Archived campaigns skipped for the
+  // same reason as SP above.
+  const sbCampaigns = rawSbCampaigns.filter((c) => normalizeEnum(c.state) !== "archived");
+  for (const c of sbCampaigns) {
+    const startDate = c.startDate ? new Date(c.startDate) : undefined;
+    await prisma.campaign.upsert({
+      where: { campaignId: c.campaignId },
+      create: {
+        campaignId: c.campaignId,
+        name: c.name,
+        state: normalizeEnum(c.state),
+        adProduct: "SPONSORED_BRANDS",
+        targetingType: null,
+        dailyBudget: c.budget ?? 0,
+        startDate,
+        profileId: dbProfileId,
+      },
+      update: {
+        name: c.name,
+        state: normalizeEnum(c.state),
+        dailyBudget: c.budget ?? 0,
+        ...(startDate ? { startDate } : {}),
       },
     });
   }
@@ -226,7 +256,12 @@ async function persistStructure(
     });
   }
 
-  return { campaigns: campaigns.length, adGroups: adGroups.length, keywords: keywords.length };
+  return {
+    campaigns: campaigns.length,
+    adGroups: adGroups.length,
+    keywords: keywords.length,
+    sbCampaigns: sbCampaigns.length,
+  };
 }
 
 interface CampaignMetricRow {
@@ -471,7 +506,7 @@ async function syncSearchTerms(client: AmazonAdsClient, { startDate, endDate }: 
 
 interface ProfileSyncResult {
   profileId: string;
-  structure?: { campaigns: number; adGroups: number; keywords: number };
+  structure?: { campaigns: number; adGroups: number; keywords: number; sbCampaigns: number };
   campaignMetrics?: number;
   adGroupMetrics?: number;
   keywordMetrics?: number;

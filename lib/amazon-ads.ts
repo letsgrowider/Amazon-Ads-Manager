@@ -198,7 +198,21 @@ const MEDIA_TYPE = {
   keyword: "application/vnd.spKeyword.v3+json",
   negativeKeyword: "application/vnd.spNegativeKeyword.v3+json",
   createReport: "application/vnd.createasyncreportrequest.v3+json",
+  sbCampaign: "application/vnd.sbcampaignresource.v4+json",
 } as const;
+
+// Sponsored Brands campaign shape — verified against Amazon's own
+// ads-advanced-tools-docs Postman collection sample responses for
+// POST /sb/v4/campaigns/list. Notably no targetingType (that's an SP-only
+// concept) and budget is a bare number, not the {budget} wrapper SP uses.
+export interface SbCampaign {
+  campaignId: string;
+  name: string;
+  state: string;
+  budget: number;
+  budgetType: string; // "DAILY" | "LIFETIME"
+  startDate: string; // YYYY-MM-DD
+}
 
 export interface CreateKeywordInput {
   campaignId: string;
@@ -290,6 +304,21 @@ export class AmazonAdsClient {
       const page = await this.request<{ campaigns: AdsCampaign[]; nextToken?: string }>("/sp/campaigns/list", {
         method: "POST",
         headers: { Accept: MEDIA_TYPE.campaign, "Content-Type": MEDIA_TYPE.campaign },
+        body: JSON.stringify(nextToken ? { nextToken } : {}),
+      });
+      results.push(...page.campaigns);
+      nextToken = page.nextToken;
+    } while (nextToken);
+    return results;
+  }
+
+  async listSbCampaigns(): Promise<SbCampaign[]> {
+    const results: SbCampaign[] = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.request<{ campaigns: SbCampaign[]; nextToken?: string }>("/sb/v4/campaigns/list", {
+        method: "POST",
+        headers: { Accept: MEDIA_TYPE.sbCampaign, "Content-Type": MEDIA_TYPE.sbCampaign },
         body: JSON.stringify(nextToken ? { nextToken } : {}),
       });
       results.push(...page.campaigns);

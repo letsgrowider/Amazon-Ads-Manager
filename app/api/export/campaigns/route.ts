@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     rows.map((r) => [
       r.campaign.name,
       r.campaign.state,
-      r.campaign.targetingType,
+      r.campaign.targetingType ?? "",
       r.campaign.profile.currencyCode,
       r.campaign.dailyBudget.toFixed(2),
       r.spend.toFixed(2),

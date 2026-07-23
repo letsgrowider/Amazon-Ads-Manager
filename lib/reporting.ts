@@ -226,12 +226,16 @@ export async function getCampaignRows(
   range: DateRange,
   profileId?: string,
   stateFilter: CampaignStateFilter = "both",
-  options: { sortBy?: CampaignSortBy; sortDir?: "asc" | "desc" } = {}
+  options: { sortBy?: CampaignSortBy; sortDir?: "asc" | "desc"; adProduct?: string } = {}
 ) {
-  const { sortBy, sortDir = "desc" } = options;
+  const { sortBy, sortDir = "desc", adProduct } = options;
 
   const campaigns = await prisma.campaign.findMany({
-    where: { state: stateWhere(stateFilter), ...profileWhere(profileId) },
+    where: {
+      state: stateWhere(stateFilter),
+      ...profileWhere(profileId),
+      ...(adProduct ? { adProduct } : {}),
+    },
     include: { profile: { include: { account: true } } },
     orderBy: { name: "asc" },
   });

@@ -98,7 +98,7 @@ export default async function CampaignDetailPage({
           </Link>
           <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">{campaign.name}</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            {campaign.state} · {campaign.targetingType} · {formatMoney(campaign.dailyBudget, currency)}/day budget
+            {campaign.state} · {campaign.targetingType ?? campaign.adProduct} · {formatMoney(campaign.dailyBudget, currency)}/day budget
           </p>
 
           {/* Primary, always-visible controls. Everything else (tags, notes,

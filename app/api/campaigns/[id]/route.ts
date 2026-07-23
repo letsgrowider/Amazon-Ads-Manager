@@ -38,6 +38,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/campai
       { status: 400 }
     );
   }
+  if (!campaign.targetingType) {
+    return NextResponse.json(
+      { error: "Editing isn't supported yet for this campaign's ad product." },
+      { status: 400 }
+    );
+  }
 
   try {
     const accessToken = await getValidAccessToken(account);

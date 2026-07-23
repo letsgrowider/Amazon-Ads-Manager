@@ -43,6 +43,11 @@ export async function applyDaypartingSchedule(): Promise<DaypartingResult[]> {
       results.push(result);
       continue;
     }
+    if (!campaign.targetingType) {
+      result.error = "dayparting isn't supported yet for this campaign's ad product — skipped";
+      results.push(result);
+      continue;
+    }
 
     const { profile } = campaign;
     const { account } = profile;

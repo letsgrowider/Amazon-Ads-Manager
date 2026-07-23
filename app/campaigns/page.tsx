@@ -7,11 +7,18 @@ import { SavedViews } from "@/app/SavedViews";
 import { AccountSwitcher } from "@/app/AccountSwitcher";
 import { CampaignsTable } from "@/app/campaigns/CampaignsTable";
 
+const AD_PRODUCT_LABELS: Record<string, string> = {
+  SPONSORED_PRODUCTS: "SP",
+  SPONSORED_BRANDS: "SB",
+  SPONSORED_DISPLAY: "SD",
+};
+
 export default async function CampaignsPage({ searchParams }: PageProps<"/campaigns">) {
   const resolvedSearchParams = await searchParams;
   const range = resolveDateRange(resolvedSearchParams);
   const activeTag = typeof resolvedSearchParams.tag === "string" ? resolvedSearchParams.tag : undefined;
   const profileId = typeof resolvedSearchParams.profile === "string" ? resolvedSearchParams.profile : undefined;
+  const adProduct = typeof resolvedSearchParams.adProduct === "string" ? resolvedSearchParams.adProduct : undefined;
   const stateFilter: CampaignStateFilter =
     resolvedSearchParams.state === "enabled" || resolvedSearchParams.state === "paused" ? resolvedSearchParams.state : "both";
   const SORT_KEYS: CampaignSortBy[] = ["spend", "sales", "acos", "ctr", "orders"];
@@ -26,8 +33,10 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const profileOptions = accounts.flatMap((a) =>
     a.profiles.map((p) => ({ id: p.id, countryCode: p.countryCode, accountName: a.name, entityName: p.entityName }))
   );
-  const allRows = await getCampaignRows(range, profileId, stateFilter, { sortBy, sortDir });
-  const prevRows = await getCampaignRows(previousPeriod(range), profileId, stateFilter);
+  const everyProductRows = await getCampaignRows(range, profileId, stateFilter);
+  const allAdProducts = [...new Set(everyProductRows.map((r) => r.campaign.adProduct))].sort();
+  const allRows = await getCampaignRows(range, profileId, stateFilter, { sortBy, sortDir, adProduct });
+  const prevRows = await getCampaignRows(previousPeriod(range), profileId, stateFilter, { adProduct });
   const prevAcosByCampaign = new Map(prevRows.map((r) => [r.campaign.id, r.acos]));
 
   const allTags = [...new Set(allRows.flatMap((r) => r.campaign.tags))].sort();
@@ -37,6 +46,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const tagQs = activeTag ? `&tag=${encodeURIComponent(activeTag)}` : "";
   const stateQs = stateFilter !== "both" ? `&state=${stateFilter}` : "";
   const profileQs = profileId ? `&profile=${profileId}` : "";
+  const adProductQs = adProduct ? `&adProduct=${adProduct}` : "";
 
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
@@ -53,12 +63,12 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
               profiles={profileOptions}
               activeProfileId={profileId}
               basePath="/campaigns"
-              extraQuery={`${rangeQs}${tagQs}${stateQs}`}
+              extraQuery={`${rangeQs}${tagQs}${stateQs}${adProductQs}`}
             />
             <DateRangeControl
               range={range}
               basePath="/campaigns"
-              extraQuery={`${profileQs}${tagQs}${stateQs}`}
+              extraQuery={`${profileQs}${tagQs}${stateQs}${adProductQs}`}
             />
             <a href={`/api/export/campaigns?${rangeQs}`} className="text-sm text-zinc-500 hover:underline">
               Export CSV
@@ -68,12 +78,33 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
 
         <SavedViews />
 
+        {allAdProducts.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-zinc-500">Type:</span>
+            <Link
+              href={`/campaigns?${rangeQs}${profileQs}${tagQs}${stateQs}`}
+              className={`rounded-full px-3 py-1 text-xs ${!adProduct ? "bg-foreground text-background" : "bg-zinc-100 text-zinc-600 hover:bg-black/[.06] dark:bg-zinc-900 dark:text-zinc-400"}`}
+            >
+              All
+            </Link>
+            {allAdProducts.map((ap) => (
+              <Link
+                key={ap}
+                href={`/campaigns?${rangeQs}${profileQs}${tagQs}${stateQs}&adProduct=${ap}`}
+                className={`rounded-full px-3 py-1 text-xs ${adProduct === ap ? "bg-foreground text-background" : "bg-zinc-100 text-zinc-600 hover:bg-black/[.06] dark:bg-zinc-900 dark:text-zinc-400"}`}
+              >
+                {AD_PRODUCT_LABELS[ap] ?? ap}
+              </Link>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-zinc-500">State:</span>
           {(["both", "enabled", "paused"] as const).map((s) => (
             <Link
               key={s}
-              href={`/campaigns?${rangeQs}${profileQs}${tagQs}${s !== "both" ? `&state=${s}` : ""}`}
+              href={`/campaigns?${rangeQs}${profileQs}${tagQs}${adProductQs}${s !== "both" ? `&state=${s}` : ""}`}
               className={`rounded-full px-3 py-1 text-xs capitalize ${stateFilter === s ? "bg-foreground text-background" : "bg-zinc-100 text-zinc-600 hover:bg-black/[.06] dark:bg-zinc-900 dark:text-zinc-400"}`}
             >
               {s}
@@ -85,7 +116,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-zinc-500">Tags:</span>
             <Link
-              href={`/campaigns?${rangeQs}${profileQs}${stateQs}`}
+              href={`/campaigns?${rangeQs}${profileQs}${stateQs}${adProductQs}`}
               className={`rounded-full px-3 py-1 text-xs ${!activeTag ? "bg-foreground text-background" : "bg-zinc-100 text-zinc-600 hover:bg-black/[.06] dark:bg-zinc-900 dark:text-zinc-400"}`}
             >
               All
@@ -93,7 +124,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
             {allTags.map((tag) => (
               <Link
                 key={tag}
-                href={`/campaigns?${rangeQs}${profileQs}${stateQs}&tag=${encodeURIComponent(tag)}`}
+                href={`/campaigns?${rangeQs}${profileQs}${stateQs}${adProductQs}&tag=${encodeURIComponent(tag)}`}
                 className={`rounded-full px-3 py-1 text-xs ${activeTag === tag ? "bg-foreground text-background" : "bg-zinc-100 text-zinc-600 hover:bg-black/[.06] dark:bg-zinc-900 dark:text-zinc-400"}`}
               >
                 {tag}
@@ -114,6 +145,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
               name: campaign.name,
               state: campaign.state,
               targetingType: campaign.targetingType,
+              adProduct: campaign.adProduct,
               notes: campaign.notes,
               tags: campaign.tags,
               spend,
