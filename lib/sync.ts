@@ -404,7 +404,7 @@ interface SearchTermRow {
   purchases7d?: number;
 }
 
-async function syncSearchTerms(client: AmazonAdsClient, { startDate, endDate }: ReportDateRange) {
+async function syncSearchTerms(client: AmazonAdsClient, { startDate, endDate }: ReportDateRange, profileDbId: string) {
   const rows = (await createAndDownloadReport(client, {
     name: `search-terms-${startDate}_${endDate}`,
     startDate,
@@ -431,9 +431,18 @@ async function syncSearchTerms(client: AmazonAdsClient, { startDate, endDate }: 
   })) as unknown as SearchTermRow[];
 
   return serialized(async () => {
-    // Re-running sync for this window should replace, not duplicate, those days.
+    // Re-running sync for this window should replace, not duplicate, those
+    // days -- but ONLY for this profile's own campaigns. Profiles sync one
+    // at a time (see PROFILE_SYNC_CONCURRENCY below), so an unscoped delete
+    // here would wipe every other profile's search-term rows for this date
+    // range and never restore them until that profile's own sync ran again.
+    const profileCampaigns = await prisma.campaign.findMany({
+      where: { profileId: profileDbId },
+      select: { campaignId: true },
+    });
+    const campaignIds = profileCampaigns.map((c) => c.campaignId);
     await prisma.searchTermReport.deleteMany({
-      where: { date: { gte: new Date(startDate), lte: new Date(endDate) } },
+      where: { date: { gte: new Date(startDate), lte: new Date(endDate) }, campaignId: { in: campaignIds } },
     });
 
     // Skip rows missing a campaign/ad group/date (e.g. a trailing summary row) —
@@ -531,7 +540,7 @@ async function syncProfile(
     syncCampaignMetrics(client, range),
     syncAdGroupMetrics(client, range),
     syncKeywordMetrics(client, range),
-    syncSearchTerms(client, range),
+    syncSearchTerms(client, range, profile.id),
   ]);
 
   if (campaignRes.status === "fulfilled") result.campaignMetrics = campaignRes.value;
