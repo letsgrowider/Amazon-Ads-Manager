@@ -17,7 +17,11 @@ export function DateRangeControl({
   basePath: string;
   extraQuery?: string;
 }) {
-  const extraParams = new URLSearchParams(extraQuery);
+  // Callers pass this in whatever shape their own query-string fragments
+  // already take (some lead with "&", some don't) — normalize once here
+  // instead of making every call site worry about it.
+  const normalizedExtraQuery = extraQuery.replace(/^&/, "");
+  const extraParams = new URLSearchParams(normalizedExtraQuery);
 
   return (
     <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -25,7 +29,7 @@ export function DateRangeControl({
         {RANGE_PRESETS.map((d) => (
           <Link
             key={d}
-            href={`${basePath}?days=${d}${extraQuery ? `&${extraQuery}` : ""}`}
+            href={`${basePath}?days=${d}${normalizedExtraQuery ? `&${normalizedExtraQuery}` : ""}`}
             className={`rounded-full px-3 py-1 ${
               range.days === String(d)
                 ? "bg-foreground text-background"
