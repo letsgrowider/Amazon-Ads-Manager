@@ -11,10 +11,13 @@ export interface BidSuggestion {
   keywordText: string;
   adGroupName: string;
   currentBid: number;
-  // ACOS is tracked at ad-group granularity (not per-keyword — Amazon's
-  // keyword-level report, spTargeting, isn't synced yet), so every keyword
-  // in an ad group shares the same ACOS input to the suggestion formula.
+  // The suggestion formula deliberately still runs on ad-group ACOS (see
+  // getBidSuggestions below) — these per-keyword numbers are for a human
+  // to sanity-check the suggestion against, not an input to it.
   adGroupAcos: number | null;
+  keywordSpend: number;
+  keywordOrders: number;
+  keywordAcos: number | null;
   suggestedBid: number | null;
 }
 
@@ -41,6 +44,21 @@ export async function getBidSuggestions(campaignId: string, range: DateRange): P
     })
   );
 
+  const keywordIds = campaign.adGroups.flatMap((a) => a.keywords.map((k) => k.id));
+  const keywordSums = await prisma.metricSnapshot.groupBy({
+    by: ["keywordId"],
+    where: { entityType: "keyword", keywordId: { in: keywordIds }, date: { gte: range.since, lte: range.until } },
+    _sum: { spend: true, sales: true, orders: true },
+  });
+  const metricsByKeyword = new Map(
+    keywordSums.map((s) => {
+      const spend = s._sum.spend ?? 0;
+      const sales = s._sum.sales ?? 0;
+      const orders = s._sum.orders ?? 0;
+      return [s.keywordId, { spend, orders, acos: sales > 0 ? (spend / sales) * 100 : null }] as const;
+    })
+  );
+
   const targetAcos = campaign.targetAcos;
   const suggestions: BidSuggestion[] = [];
   for (const adGroup of campaign.adGroups) {
@@ -52,12 +70,16 @@ export async function getBidSuggestions(campaignId: string, range: DateRange): P
         const clampedRatio = Math.min(1 + MAX_BID_CHANGE_RATIO, Math.max(1 - MAX_BID_CHANGE_RATIO, ratio));
         suggestedBid = Math.max(MIN_BID, Number((kw.bid * clampedRatio).toFixed(2)));
       }
+      const kwMetrics = metricsByKeyword.get(kw.id);
       suggestions.push({
         keywordId: kw.id,
         keywordText: kw.keywordText,
         adGroupName: adGroup.name,
         currentBid: kw.bid,
         adGroupAcos: acos,
+        keywordSpend: kwMetrics?.spend ?? 0,
+        keywordOrders: kwMetrics?.orders ?? 0,
+        keywordAcos: kwMetrics?.acos ?? null,
         suggestedBid,
       });
     }

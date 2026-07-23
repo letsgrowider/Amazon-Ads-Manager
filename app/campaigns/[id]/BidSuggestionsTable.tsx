@@ -9,6 +9,9 @@ export interface BidSuggestionRow {
   keywordText: string;
   adGroupName: string;
   adGroupAcos: number | null;
+  keywordSpend: number;
+  keywordOrders: number;
+  keywordAcos: number | null;
   currentBid: number;
   suggestedBid: number;
 }
@@ -91,6 +94,9 @@ export function BidSuggestionsTable({ rows, currency }: { rows: BidSuggestionRow
               <th className="py-2"></th>
               <th className="py-2">Keyword</th>
               <th className="py-2">Ad group</th>
+              <th className="py-2 text-right">Cost</th>
+              <th className="py-2 text-right">Orders</th>
+              <th className="py-2 text-right">Keyword ACOS</th>
               <th className="py-2 text-right">Ad group ACOS</th>
               <th className="py-2 text-right">Current bid</th>
               <th className="py-2 text-right">Suggested bid</th>
@@ -114,6 +120,13 @@ export function BidSuggestionsTable({ rows, currency }: { rows: BidSuggestionRow
                   </td>
                   <td className="py-2 text-black dark:text-zinc-50">{r.keywordText}</td>
                   <td className="py-2 text-zinc-600 dark:text-zinc-400">{r.adGroupName}</td>
+                  <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">
+                    {formatMoney(r.keywordSpend, currency)}
+                  </td>
+                  <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">{r.keywordOrders}</td>
+                  <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">
+                    {r.keywordAcos !== null ? `${r.keywordAcos.toFixed(1)}%` : "—"}
+                  </td>
                   <td className="py-2 text-right text-zinc-600 dark:text-zinc-400">
                     {r.adGroupAcos?.toFixed(1)}%
                   </td>

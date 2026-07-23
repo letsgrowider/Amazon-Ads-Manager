@@ -211,6 +211,9 @@ export default async function CampaignDetailPage({
                   keywordText: s.keywordText,
                   adGroupName: s.adGroupName,
                   adGroupAcos: s.adGroupAcos,
+                  keywordSpend: s.keywordSpend,
+                  keywordOrders: s.keywordOrders,
+                  keywordAcos: s.keywordAcos,
                   currentBid: s.currentBid,
                   suggestedBid: s.suggestedBid!,
                 }))}
