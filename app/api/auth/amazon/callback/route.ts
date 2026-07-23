@@ -37,6 +37,32 @@ export async function GET(request: NextRequest) {
       where: { id: existingProfile.accountId },
       data: { accessToken: tokens.access_token, refreshToken: tokens.refresh_token, tokenExpiresAt },
     });
+
+    // The account may have been granted access to more profiles (e.g. a
+    // new marketplace) since it was first connected — a reconnect only
+    // refreshing tokens would silently drop those. Add any profile in
+    // this fresh listProfiles() response that isn't in our DB yet.
+    const alreadySavedIds = new Set(
+      (
+        await prisma.profile.findMany({
+          where: { accountId: existingProfile.accountId },
+          select: { profileId: true },
+        })
+      ).map((p) => p.profileId)
+    );
+    const newProfiles = profiles.filter((p) => !alreadySavedIds.has(String(p.profileId)));
+    if (newProfiles.length > 0) {
+      await prisma.profile.createMany({
+        data: newProfiles.map((p) => ({
+          profileId: String(p.profileId),
+          countryCode: p.countryCode,
+          currencyCode: p.currencyCode,
+          marketplaceId: p.accountInfo.marketplaceStringId,
+          entityName: p.accountInfo.name,
+          accountId: existingProfile.accountId,
+        })),
+      });
+    }
   } else {
     await prisma.amazonAccount.create({
       data: {
