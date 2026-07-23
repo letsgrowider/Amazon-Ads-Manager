@@ -33,10 +33,7 @@ export default async function HistoryPage() {
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full max-w-4xl flex-col gap-6 py-16 px-8">
         <div>
-          <Link href="/" className="text-sm text-zinc-500 hover:underline">
-            &larr; Dashboard
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">Change History</h1>
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">Change History</h1>
         </div>
 
         {logs.length === 0 ? (

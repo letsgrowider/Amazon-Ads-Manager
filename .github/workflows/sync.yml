@@ -2,8 +2,18 @@ name: Sync Amazon Ads data
 
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}
+
+# A run has taken anywhere from 30 to 172+ minutes in practice (Amazon's own
+# report-generation latency, not something this workflow controls) -- tried
+# tightening this to every 3h once and it caused real overlapping runs that
+# raced each other for the same DB connections and started failing outright
+# (ETIMEDOUT on the very first query). Queue instead of running in parallel,
+# no matter how the schedule is tuned later.
+concurrency:
+  group: amazon-sync
+  cancel-in-progress: false
 
 jobs:
   sync:

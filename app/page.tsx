@@ -117,22 +117,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div className="flex flex-wrap justify-end gap-3">
             {accounts !== null && accounts.length > 0 && (
               <Link
-                href="/campaigns"
-                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
-              >
-                View Campaigns
-              </Link>
-            )}
-            {accounts !== null && accounts.length > 0 && (
-              <Link
-                href="/search-terms"
-                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
-              >
-                Search Terms
-              </Link>
-            )}
-            {accounts !== null && accounts.length > 0 && (
-              <Link
                 href="/negative-keywords"
                 className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
               >
@@ -155,30 +139,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                     {suggestionCounts.keywordHarvest}
                   </span>
                 )}
-              </Link>
-            )}
-            {accounts !== null && accounts.length > 0 && (
-              <Link
-                href="/keywords"
-                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
-              >
-                Keywords
-              </Link>
-            )}
-            {accounts !== null && accounts.length > 0 && (
-              <Link
-                href="/history"
-                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
-              >
-                History
-              </Link>
-            )}
-            {accounts !== null && accounts.length > 0 && (
-              <Link
-                href="/accounts"
-                className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-black/[.04] dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-white/[.06]"
-              >
-                Manage Accounts
               </Link>
             )}
             {accounts !== null && accounts.length > 0 && <SyncButton />}

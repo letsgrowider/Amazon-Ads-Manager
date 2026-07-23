@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { KeywordsTable } from "@/app/keywords/KeywordsTable";
 import { getKeywordRows, type KeywordSortBy } from "@/lib/reporting";
@@ -36,10 +35,7 @@ export default async function KeywordsPage({ searchParams }: PageProps<"/keyword
       <main className="flex w-full max-w-6xl flex-col gap-6 py-16 px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link href="/" className="text-sm text-zinc-500 hover:underline">
-              &larr; Dashboard
-            </Link>
-            <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">Keywords</h1>
+            <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">Keywords</h1>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <DateRangeControl

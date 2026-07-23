@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { DismissButton } from "@/app/DismissButton";
 import { PushButton } from "@/app/PushButton";
 import { BulkPushButton } from "@/app/BulkPushButton";
+import { SearchTermsSubNav } from "@/app/search-terms/SearchTermsSubNav";
 import { formatMoney } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +24,10 @@ export default async function KeywordHarvestPage() {
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full max-w-4xl flex-col gap-8 py-16 px-8">
+        <SearchTermsSubNav />
+
         <div>
-          <Link href="/" className="text-sm text-zinc-500 hover:underline">
-            &larr; Dashboard
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">Keyword Harvesting</h1>
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">Keyword Harvesting</h1>
           <p className="mt-1 text-sm text-zinc-500">
             Search terms that converted — candidates to promote into their own exact-match keyword.
             Queued locally until you push them — nothing here touches your live account until you

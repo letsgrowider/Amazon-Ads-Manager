@@ -53,10 +53,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
       <main className="flex w-full max-w-5xl flex-col gap-6 py-16 px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link href="/" className="text-sm text-zinc-500 hover:underline">
-              &larr; Dashboard
-            </Link>
-            <h1 className="mt-1 text-2xl font-semibold text-black dark:text-zinc-50">Campaigns</h1>
+            <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">Campaigns</h1>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <AccountSwitcher
