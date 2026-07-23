@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { SyncToggle } from "@/app/accounts/SyncToggle";
 
+export const dynamic = "force-dynamic";
+
 // Country names duplicated from AccountSwitcher.tsx rather than shared —
 // this page is the only other place that needs them, and importing a
 // "use client" component's constant into a server component just to reuse

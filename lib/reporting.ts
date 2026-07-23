@@ -206,7 +206,16 @@ function stateWhere(stateFilter: CampaignStateFilter) {
   return stateFilter === "both" ? { in: ["enabled", "paused"] } : stateFilter;
 }
 
-export async function getCampaignRows(range: DateRange, profileId?: string, stateFilter: CampaignStateFilter = "both") {
+export type CampaignSortBy = "spend" | "sales" | "acos" | "ctr" | "orders";
+
+export async function getCampaignRows(
+  range: DateRange,
+  profileId?: string,
+  stateFilter: CampaignStateFilter = "both",
+  options: { sortBy?: CampaignSortBy; sortDir?: "asc" | "desc" } = {}
+) {
+  const { sortBy, sortDir = "desc" } = options;
+
   const campaigns = await prisma.campaign.findMany({
     where: { state: stateWhere(stateFilter), ...profileWhere(profileId) },
     include: { profile: { include: { account: true } } },
@@ -224,7 +233,7 @@ export async function getCampaignRows(range: DateRange, profileId?: string, stat
   });
   const metricsByCampaign = new Map(metricSums.map((m) => [m.campaignId, m._sum]));
 
-  return campaigns.map((campaign) => {
+  const rows = campaigns.map((campaign) => {
     const sums = metricsByCampaign.get(campaign.id);
     const impressions = sums?.impressions ?? 0;
     const clicks = sums?.clicks ?? 0;
@@ -242,6 +251,13 @@ export async function getCampaignRows(range: DateRange, profileId?: string, stat
       ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
     };
   });
+
+  if (sortBy) {
+    const sortValue = (r: (typeof rows)[number]) => r[sortBy];
+    rows.sort((a, b) => (sortDir === "asc" ? sortValue(a) - sortValue(b) : sortValue(b) - sortValue(a)));
+  }
+
+  return rows;
 }
 
 // Account-wide daily spend/sales trend, summed across all campaigns (or just

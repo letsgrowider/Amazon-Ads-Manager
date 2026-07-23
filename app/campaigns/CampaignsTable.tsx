@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ChangeBadge } from "@/app/ChangeBadge";
 import { percentChange } from "@/lib/date-range";
@@ -23,11 +23,36 @@ interface CampaignRow {
   currencyCode: string | null;
 }
 
-export function CampaignsTable({ rows }: { rows: CampaignRow[] }) {
+type SortKey = "spend" | "sales" | "acos" | "ctr" | "orders";
+
+export function CampaignsTable({
+  rows,
+  sortBy,
+  sortDir,
+}: {
+  rows: CampaignRow[];
+  sortBy?: SortKey;
+  sortDir?: "asc" | "desc";
+}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [state, setState] = useState<"idle" | "applying" | "done">("idle");
   const [resultMsg, setResultMsg] = useState("");
+
+  function sortHref(key: SortKey) {
+    const params = new URLSearchParams(searchParams.toString());
+    const nextDir = sortBy === key && sortDir === "desc" ? "asc" : "desc";
+    params.set("sort", key);
+    params.set("dir", nextDir);
+    return `${pathname}?${params.toString()}`;
+  }
+
+  function sortIndicator(key: SortKey) {
+    if (sortBy !== key) return null;
+    return sortDir === "asc" ? " ↑" : " ↓";
+  }
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
 
@@ -101,12 +126,32 @@ export function CampaignsTable({ rows }: { rows: CampaignRow[] }) {
             </th>
             <th className="py-2">Campaign</th>
             <th className="py-2">State</th>
-            <th className="py-2 text-right">Spend</th>
-            <th className="py-2 text-right">Sales</th>
-            <th className="py-2 text-right">ACOS</th>
+            <th className="py-2 text-right">
+              <Link href={sortHref("spend")} className="hover:underline">
+                Spend{sortIndicator("spend")}
+              </Link>
+            </th>
+            <th className="py-2 text-right">
+              <Link href={sortHref("sales")} className="hover:underline">
+                Sales{sortIndicator("sales")}
+              </Link>
+            </th>
+            <th className="py-2 text-right">
+              <Link href={sortHref("acos")} className="hover:underline">
+                ACOS{sortIndicator("acos")}
+              </Link>
+            </th>
             <th className="py-2 text-right">vs prev</th>
-            <th className="py-2 text-right">CTR</th>
-            <th className="py-2 text-right">Orders</th>
+            <th className="py-2 text-right">
+              <Link href={sortHref("ctr")} className="hover:underline">
+                CTR{sortIndicator("ctr")}
+              </Link>
+            </th>
+            <th className="py-2 text-right">
+              <Link href={sortHref("orders")} className="hover:underline">
+                Orders{sortIndicator("orders")}
+              </Link>
+            </th>
           </tr>
         </thead>
         <tbody>

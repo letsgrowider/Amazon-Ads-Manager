@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getCampaignRows, type CampaignStateFilter } from "@/lib/reporting";
+import { getCampaignRows, type CampaignStateFilter, type CampaignSortBy } from "@/lib/reporting";
 import { resolveDateRange, rangeToQuery, previousPeriod } from "@/lib/date-range";
 import { DateRangeControl } from "@/app/DateRangeControl";
 import { SavedViews } from "@/app/SavedViews";
@@ -14,6 +14,11 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const profileId = typeof resolvedSearchParams.profile === "string" ? resolvedSearchParams.profile : undefined;
   const stateFilter: CampaignStateFilter =
     resolvedSearchParams.state === "enabled" || resolvedSearchParams.state === "paused" ? resolvedSearchParams.state : "both";
+  const SORT_KEYS: CampaignSortBy[] = ["spend", "sales", "acos", "ctr", "orders"];
+  const sortBy: CampaignSortBy | undefined = SORT_KEYS.includes(resolvedSearchParams.sort as CampaignSortBy)
+    ? (resolvedSearchParams.sort as CampaignSortBy)
+    : undefined;
+  const sortDir: "asc" | "desc" = resolvedSearchParams.dir === "asc" ? "asc" : "desc";
 
   const accounts = await prisma.amazonAccount.findMany({
     select: { name: true, profiles: { select: { id: true, countryCode: true, entityName: true } } },
@@ -21,7 +26,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const profileOptions = accounts.flatMap((a) =>
     a.profiles.map((p) => ({ id: p.id, countryCode: p.countryCode, accountName: a.name, entityName: p.entityName }))
   );
-  const allRows = await getCampaignRows(range, profileId, stateFilter);
+  const allRows = await getCampaignRows(range, profileId, stateFilter, { sortBy, sortDir });
   const prevRows = await getCampaignRows(previousPeriod(range), profileId, stateFilter);
   const prevAcosByCampaign = new Map(prevRows.map((r) => [r.campaign.id, r.acos]));
 
@@ -115,6 +120,8 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
               prevAcos: prevAcosByCampaign.get(campaign.id) ?? 0,
               currencyCode: campaign.profile.currencyCode,
             }))}
+            sortBy={sortBy}
+            sortDir={sortDir}
           />
         )}
       </main>
