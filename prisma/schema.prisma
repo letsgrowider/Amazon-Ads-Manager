@@ -107,6 +107,7 @@ model AdGroup {
   campaign   Campaign @relation(fields: [campaignId], references: [id])
 
   keywords Keyword[]
+  targets  Target[]
   metrics  MetricSnapshot[]
   negativeKeywordSuggestions NegativeKeywordSuggestion[]
   keywordHarvestSuggestions  KeywordHarvestSuggestion[]
@@ -126,12 +127,34 @@ model Keyword {
   metrics MetricSnapshot[]
 }
 
-// Daily rollup of performance for a campaign / ad group / keyword.
+// Product/category/auto targeting — Amazon's OTHER targeting resource
+// (/sp/targets), entirely separate from Keyword (/sp/keywords). A manual
+// campaign can use either or both per ad group; this was never synced at
+// all before, so PT-targeted ad groups had zero visibility or bid control.
+model Target {
+  id                String   @id @default(cuid())
+  targetId          String   @unique
+  expressionType    String // AUTO | MANUAL
+  // Human-readable summary of the expression array — e.g. "ASIN: B0XXXXX",
+  // "Category: same as ASIN X", or an auto bucket like "Close match",
+  // "Substitutes". Kept denormalized since the raw expression is a list of
+  // {type, value?} pairs that's awkward to reconstruct for display each time.
+  expressionSummary String
+  state             String
+  bid               Float?
+  adGroupId         String
+  adGroup           AdGroup  @relation(fields: [adGroupId], references: [id])
+  createdAt         DateTime @default(now())
+
+  metrics MetricSnapshot[]
+}
+
+// Daily rollup of performance for a campaign / ad group / keyword / target.
 // entityType + entityId identify what this row measures.
 model MetricSnapshot {
   id          String   @id @default(cuid())
   date        DateTime // day granularity
-  entityType  String // campaign | adGroup | keyword
+  entityType  String // campaign | adGroup | keyword | target
   impressions Int
   clicks      Int
   spend       Float
@@ -146,8 +169,10 @@ model MetricSnapshot {
   adGroup    AdGroup?  @relation(fields: [adGroupId], references: [id])
   keywordId  String?
   keyword    Keyword?  @relation(fields: [keywordId], references: [id])
+  targetId   String?
+  target     Target?   @relation(fields: [targetId], references: [id])
 
-  @@unique([date, entityType, campaignId, adGroupId, keywordId])
+  @@unique([date, entityType, campaignId, adGroupId, keywordId, targetId])
   @@index([date])
 }
 

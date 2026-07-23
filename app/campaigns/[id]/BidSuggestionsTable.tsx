@@ -5,6 +5,7 @@ import { useState } from "react";
 import { formatMoney } from "@/lib/currency";
 
 export interface BidSuggestionRow {
+  entityType: "keyword" | "target";
   keywordId: string;
   keywordText: string;
   adGroupName: string;
@@ -44,7 +45,8 @@ export function BidSuggestionsTable({ rows, currency }: { rows: BidSuggestionRow
   async function applyOne(row: BidSuggestionRow) {
     setStatus((prev) => ({ ...prev, [row.keywordId]: "applying" }));
     try {
-      const res = await fetch(`/api/keywords/${row.keywordId}/bid`, {
+      const apiPath = row.entityType === "target" ? "targets" : "keywords";
+      const res = await fetch(`/api/${apiPath}/${row.keywordId}/bid`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bid: row.suggestedBid }),
@@ -92,7 +94,8 @@ export function BidSuggestionsTable({ rows, currency }: { rows: BidSuggestionRow
           <thead>
             <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
               <th className="py-2"></th>
-              <th className="py-2">Keyword</th>
+              <th className="py-2">Type</th>
+              <th className="py-2">Keyword / Target</th>
               <th className="py-2">Ad group</th>
               <th className="py-2 text-right">Cost</th>
               <th className="py-2 text-right">Orders</th>
@@ -117,6 +120,13 @@ export function BidSuggestionsTable({ rows, currency }: { rows: BidSuggestionRow
                         disabled={bulkRunning || rowStatus === "applying"}
                       />
                     )}
+                  </td>
+                  <td className="py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${r.entityType === "target" ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"}`}
+                    >
+                      {r.entityType === "target" ? "Target" : "Keyword"}
+                    </span>
                   </td>
                   <td className="py-2 text-black dark:text-zinc-50">{r.keywordText}</td>
                   <td className="py-2 text-zinc-600 dark:text-zinc-400">{r.adGroupName}</td>

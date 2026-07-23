@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/db";
-import { AmazonAdsClient, type AdsCampaign, type AdsAdGroup, type AdsKeyword, type SbCampaign } from "@/lib/amazon-ads";
+import {
+  AmazonAdsClient,
+  type AdsCampaign,
+  type AdsAdGroup,
+  type AdsKeyword,
+  type SbCampaign,
+  type AdsTarget,
+} from "@/lib/amazon-ads";
 import { getValidAccessToken, forceRefreshAccessToken } from "@/lib/amazon-account";
 import { createAndDownloadReport } from "@/lib/amazon-reports";
 
@@ -50,6 +57,42 @@ function normalizeEnum(value: string): string {
   return value.toLowerCase();
 }
 
+// Amazon's well-known auto-targeting expression types, and the labels
+// Amazon's own UI uses for them.
+const AUTO_EXPRESSION_LABELS: Record<string, string> = {
+  QUERY_HIGH_REL_MATCHES: "Close match",
+  QUERY_BROAD_REL_MATCHES: "Loose match",
+  ASIN_SUBSTITUTE_RELATED: "Substitutes",
+  ASIN_ACCESSORY_RELATED: "Complements",
+};
+
+// Manual-targeting expression types carry a value (an ASIN or category id) —
+// no separate lookup exists here to resolve a category id to its name, so
+// that id is shown as-is rather than guessed at.
+const MANUAL_EXPRESSION_PREFIXES: Record<string, string> = {
+  ASIN_SAME_AS: "ASIN",
+  ASIN_CATEGORY_SAME_AS: "Category",
+  ASIN_BRAND_SAME_AS: "Brand",
+  ASIN_PRICE_LESS_THAN: "Price <",
+  ASIN_PRICE_BETWEEN: "Price between",
+  ASIN_PRICE_GREATER_THAN: "Price >",
+  ASIN_REVIEW_RATING_LESS_THAN: "Rating <",
+  ASIN_REVIEW_RATING_BETWEEN: "Rating between",
+  ASIN_REVIEW_RATING_GREATER_THAN: "Rating >",
+  ASIN_IS_PRIME_SHIPPING_ELIGIBLE: "Prime shipping",
+};
+
+function summarizeExpression(expressionType: string, expression: { type: string; value?: string }[]): string {
+  if (expression.length === 0) return expressionType === "AUTO" ? "Auto targeting" : "Manual targeting";
+  return expression
+    .map((e) => {
+      if (expressionType === "AUTO") return AUTO_EXPRESSION_LABELS[e.type] ?? e.type;
+      const prefix = MANUAL_EXPRESSION_PREFIXES[e.type] ?? e.type;
+      return e.value ? `${prefix}: ${e.value}` : prefix;
+    })
+    .join(" + ");
+}
+
 // Node's fetch() collapses network-layer failures (ECONNRESET, TLS errors,
 // timeouts) into a bare "fetch failed" message — the real reason lives on
 // err.cause, which we were previously discarding, making these errors
@@ -61,10 +104,11 @@ function errMsg(err: unknown): string {
 
 interface MetricSnapshotKey {
   date: Date;
-  entityType: "campaign" | "adGroup" | "keyword";
+  entityType: "campaign" | "adGroup" | "keyword" | "target";
   campaignId: string | null;
   adGroupId: string | null;
   keywordId: string | null;
+  targetId: string | null;
 }
 
 interface MetricSnapshotValues {
@@ -118,14 +162,17 @@ async function upsertMetricSnapshot(key: MetricSnapshotKey, values: MetricSnapsh
 }
 
 async function syncStructure(client: AmazonAdsClient, dbProfileId: string) {
-  const [rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns] = await Promise.all([
+  const [rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns, rawTargets] = await Promise.all([
     client.listCampaigns(),
     client.listAdGroups(),
     client.listKeywords(),
     client.listSbCampaigns(),
+    client.listTargets(),
   ]);
 
-  return serialized(() => persistStructure(rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns, dbProfileId));
+  return serialized(() =>
+    persistStructure(rawCampaigns, rawAdGroups, rawKeywords, rawSbCampaigns, rawTargets, dbProfileId)
+  );
 }
 
 async function persistStructure(
@@ -133,6 +180,7 @@ async function persistStructure(
   rawAdGroups: AdsAdGroup[],
   rawKeywords: AdsKeyword[],
   rawSbCampaigns: SbCampaign[],
+  rawTargets: AdsTarget[],
   dbProfileId: string
 ) {
   // Archived campaigns (and everything under them) are never managed again —
@@ -143,6 +191,7 @@ async function persistStructure(
   const adGroups = rawAdGroups.filter((ag) => activeCampaignIds.has(ag.campaignId));
   const activeAdGroupIds = new Set(adGroups.map((ag) => ag.adGroupId));
   const keywords = rawKeywords.filter((kw) => activeAdGroupIds.has(kw.adGroupId));
+  const targets = rawTargets.filter((t) => activeAdGroupIds.has(t.adGroupId));
 
   for (const c of campaigns) {
     const startDate = c.startDate ? new Date(c.startDate) : undefined;
@@ -229,7 +278,7 @@ async function persistStructure(
   }
 
   const dbAdGroups = await prisma.adGroup.findMany({
-    where: { adGroupId: { in: keywords.map((kw) => kw.adGroupId) } },
+    where: { adGroupId: { in: [...keywords.map((kw) => kw.adGroupId), ...targets.map((t) => t.adGroupId)] } },
     select: { id: true, adGroupId: true },
   });
   const adGroupIdByAmazonId = new Map(dbAdGroups.map((a) => [a.adGroupId, a.id]));
@@ -256,11 +305,34 @@ async function persistStructure(
     });
   }
 
+  for (const t of targets) {
+    const adGroupDbId = adGroupIdByAmazonId.get(t.adGroupId);
+    if (!adGroupDbId) continue;
+    const expressionSummary = summarizeExpression(t.expressionType, t.resolvedExpression ?? t.expression ?? []);
+    await prisma.target.upsert({
+      where: { targetId: t.targetId },
+      create: {
+        targetId: t.targetId,
+        expressionType: normalizeEnum(t.expressionType).toUpperCase(),
+        expressionSummary,
+        state: normalizeEnum(t.state),
+        bid: t.bid ?? null,
+        adGroupId: adGroupDbId,
+      },
+      update: {
+        expressionSummary,
+        state: normalizeEnum(t.state),
+        bid: t.bid ?? null,
+      },
+    });
+  }
+
   return {
     campaigns: campaigns.length,
     adGroups: adGroups.length,
     keywords: keywords.length,
     sbCampaigns: sbCampaigns.length,
+    targets: targets.length,
   };
 }
 
@@ -303,7 +375,14 @@ async function syncCampaignMetrics(client: AmazonAdsClient, { startDate, endDate
       if (!campaign) continue;
 
       await upsertMetricSnapshot(
-        { date: new Date(row.date), entityType: "campaign", campaignId: campaign.id, adGroupId: null, keywordId: null },
+        {
+          date: new Date(row.date),
+          entityType: "campaign",
+          campaignId: campaign.id,
+          adGroupId: null,
+          keywordId: null,
+          targetId: null,
+        },
         {
           impressions: row.impressions ?? 0,
           clicks: row.clicks ?? 0,
@@ -356,7 +435,14 @@ async function syncAdGroupMetrics(client: AmazonAdsClient, { startDate, endDate 
       if (!adGroup) continue;
 
       await upsertMetricSnapshot(
-        { date: new Date(row.date), entityType: "adGroup", campaignId: null, adGroupId: adGroup.id, keywordId: null },
+        {
+          date: new Date(row.date),
+          entityType: "adGroup",
+          campaignId: null,
+          adGroupId: adGroup.id,
+          keywordId: null,
+          targetId: null,
+        },
         {
           impressions: row.impressions ?? 0,
           clicks: row.clicks ?? 0,
@@ -386,16 +472,22 @@ interface KeywordMetricRow {
 // Per Amazon's own examples, keyword rows come from spTargeting grouped by
 // "targeting", filtered to the three real keyword match types (this report
 // type also covers product/category targeting, which isn't wanted here).
-async function syncKeywordMetrics(client: AmazonAdsClient, { startDate, endDate }: ReportDateRange) {
+// spTargeting covers BOTH real keywords and product/category/auto targets —
+// the report's id column is literally named "keywordId" for every row
+// regardless of which one it is (Amazon's own naming, not ours). Previously
+// this was filtered down to just the three keyword match types, which
+// silently discarded every target row rather than syncing it anywhere.
+// Now every row is looked up against both tables; whichever one it matches
+// tells us what it actually is.
+async function syncTargetingMetrics(client: AmazonAdsClient, { startDate, endDate }: ReportDateRange) {
   const rows = (await createAndDownloadReport(client, {
-    name: `keyword-metrics-${startDate}_${endDate}`,
+    name: `targeting-metrics-${startDate}_${endDate}`,
     startDate,
     endDate,
     configuration: {
       adProduct: "SPONSORED_PRODUCTS",
       groupBy: ["targeting"],
       columns: ["keywordId", "date", "impressions", "clicks", "cost", "sales7d", "purchases7d"],
-      filters: [{ field: "keywordType", values: ["BROAD", "PHRASE", "EXACT"] }],
       reportTypeId: "spTargeting",
       timeUnit: "DAILY",
       format: "GZIP_JSON",
@@ -403,25 +495,39 @@ async function syncKeywordMetrics(client: AmazonAdsClient, { startDate, endDate 
   })) as unknown as KeywordMetricRow[];
 
   return serialized(async () => {
-    let count = 0;
+    let keywordCount = 0;
+    let targetCount = 0;
     for (const row of rows) {
       if (row.keywordId == null || !row.date) continue;
-      const keyword = await prisma.keyword.findUnique({ where: { keywordId: String(row.keywordId) } });
-      if (!keyword) continue;
+      const idStr = String(row.keywordId);
+      const values = {
+        impressions: row.impressions ?? 0,
+        clicks: row.clicks ?? 0,
+        spend: row.cost ?? 0,
+        sales: row.sales7d ?? 0,
+        orders: row.purchases7d ?? 0,
+      };
 
-      await upsertMetricSnapshot(
-        { date: new Date(row.date), entityType: "keyword", campaignId: null, adGroupId: null, keywordId: keyword.id },
-        {
-          impressions: row.impressions ?? 0,
-          clicks: row.clicks ?? 0,
-          spend: row.cost ?? 0,
-          sales: row.sales7d ?? 0,
-          orders: row.purchases7d ?? 0,
-        }
-      );
-      count++;
+      const keyword = await prisma.keyword.findUnique({ where: { keywordId: idStr } });
+      if (keyword) {
+        await upsertMetricSnapshot(
+          { date: new Date(row.date), entityType: "keyword", campaignId: null, adGroupId: null, keywordId: keyword.id, targetId: null },
+          values
+        );
+        keywordCount++;
+        continue;
+      }
+
+      const target = await prisma.target.findUnique({ where: { targetId: idStr } });
+      if (target) {
+        await upsertMetricSnapshot(
+          { date: new Date(row.date), entityType: "target", campaignId: null, adGroupId: null, keywordId: null, targetId: target.id },
+          values
+        );
+        targetCount++;
+      }
     }
-    return count;
+    return { keywordCount, targetCount };
   });
 }
 
@@ -506,10 +612,11 @@ async function syncSearchTerms(client: AmazonAdsClient, { startDate, endDate }: 
 
 interface ProfileSyncResult {
   profileId: string;
-  structure?: { campaigns: number; adGroups: number; keywords: number; sbCampaigns: number };
+  structure?: { campaigns: number; adGroups: number; keywords: number; sbCampaigns: number; targets: number };
   campaignMetrics?: number;
   adGroupMetrics?: number;
   keywordMetrics?: number;
+  targetMetrics?: number;
   searchTerms?: number;
   errors: string[];
 }
@@ -571,10 +678,10 @@ async function syncProfile(
   // concurrently is the single biggest sync-time win available to us;
   // Amazon's own report-generation time (the real bottleneck, especially
   // for large accounts) is outside our control either way.
-  const [campaignRes, adGroupRes, keywordRes, searchTermRes] = await Promise.allSettled([
+  const [campaignRes, adGroupRes, targetingRes, searchTermRes] = await Promise.allSettled([
     syncCampaignMetrics(client, range),
     syncAdGroupMetrics(client, range),
-    syncKeywordMetrics(client, range),
+    syncTargetingMetrics(client, range),
     syncSearchTerms(client, range, profile.id),
   ]);
 
@@ -584,8 +691,12 @@ async function syncProfile(
   if (adGroupRes.status === "fulfilled") result.adGroupMetrics = adGroupRes.value;
   else result.errors.push(`ad group metrics failed: ${errMsg(adGroupRes.reason)}`);
 
-  if (keywordRes.status === "fulfilled") result.keywordMetrics = keywordRes.value;
-  else result.errors.push(`keyword metrics failed: ${errMsg(keywordRes.reason)}`);
+  if (targetingRes.status === "fulfilled") {
+    result.keywordMetrics = targetingRes.value.keywordCount;
+    result.targetMetrics = targetingRes.value.targetCount;
+  } else {
+    result.errors.push(`targeting metrics failed: ${errMsg(targetingRes.reason)}`);
+  }
 
   if (searchTermRes.status === "fulfilled") result.searchTerms = searchTermRes.value;
   else result.errors.push(`search terms failed: ${errMsg(searchTermRes.reason)}`);

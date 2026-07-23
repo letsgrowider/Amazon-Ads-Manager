@@ -199,7 +199,28 @@ const MEDIA_TYPE = {
   negativeKeyword: "application/vnd.spNegativeKeyword.v3+json",
   createReport: "application/vnd.createasyncreportrequest.v3+json",
   sbCampaign: "application/vnd.sbcampaignresource.v4+json",
+  target: "application/vnd.spTargetingClause.v3+json",
 } as const;
+
+// Product/category/auto targeting — verified against Amazon's own
+// ads-advanced-tools-docs Postman examples for /sp/targets/list. `bid` is
+// absent on some AUTO rows in Amazon's own sample responses (ad-group
+// default bid applies instead), hence optional here.
+export interface AdsTargetExpression {
+  type: string; // e.g. ASIN_SAME_AS, ASIN_CATEGORY_SAME_AS, QUERY_HIGH_REL_MATCHES (close-match), QUERY_BROAD_REL_MATCHES, ASIN_ACCESSORY_RELATED, ASIN_SUBSTITUTE_RELATED
+  value?: string;
+}
+
+export interface AdsTarget {
+  targetId: string;
+  campaignId: string;
+  adGroupId: string;
+  expressionType: string; // AUTO | MANUAL
+  expression: AdsTargetExpression[];
+  resolvedExpression: AdsTargetExpression[];
+  state: string;
+  bid?: number;
+}
 
 // Sponsored Brands campaign shape — verified against Amazon's own
 // ads-advanced-tools-docs Postman collection sample responses for
@@ -365,6 +386,31 @@ export class AmazonAdsClient {
       method: "PUT",
       headers: { Accept: MEDIA_TYPE.keyword, "Content-Type": MEDIA_TYPE.keyword },
       body: JSON.stringify({ keywords: updates }),
+    });
+  }
+
+  async listTargets(): Promise<AdsTarget[]> {
+    const results: AdsTarget[] = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.request<{ targetingClauses: AdsTarget[]; nextToken?: string }>("/sp/targets/list", {
+        method: "POST",
+        headers: { Accept: MEDIA_TYPE.target, "Content-Type": MEDIA_TYPE.target },
+        body: JSON.stringify(nextToken ? { nextToken } : {}),
+      });
+      results.push(...page.targetingClauses);
+      nextToken = page.nextToken;
+    } while (nextToken);
+    return results;
+  }
+
+  // Verified request shape: {targetingClauses: [{targetId, bid}]}, same
+  // wrapper key the list response uses (not "targets").
+  async updateTargetBids(updates: { targetId: string; bid: number }[]): Promise<void> {
+    await this.request("/sp/targets", {
+      method: "PUT",
+      headers: { Accept: MEDIA_TYPE.target, "Content-Type": MEDIA_TYPE.target },
+      body: JSON.stringify({ targetingClauses: updates }),
     });
   }
 

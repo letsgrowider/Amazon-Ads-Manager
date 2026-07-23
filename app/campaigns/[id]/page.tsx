@@ -207,6 +207,7 @@ export default async function CampaignDetailPage({
             ) : (
               <BidSuggestionsTable
                 rows={actionableSuggestions.map((s) => ({
+                  entityType: s.entityType,
                   keywordId: s.keywordId,
                   keywordText: s.keywordText,
                   adGroupName: s.adGroupName,
